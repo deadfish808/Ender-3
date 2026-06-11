@@ -1,0 +1,428 @@
+extends CharacterBody2D
+## The survivor: movement, melee/bow/staff combat, survival stats, inventory.
+
+signal inventory_changed
+signal died
+
+const WALK_SPEED := 110.0
+const SPRINT_SPEED := 170.0
+const FISTS := {"name": "Fists", "type": "melee", "dmg": 6, "cooldown": 0.5, "knockback": 60}
+
+var inventory: Dictionary = {}
+var equipped := ""  # item id, "" = fists
+
+var hp := 100.0
+var stamina := 100.0
+var mana := 50.0
+var hunger := 100.0
+
+var facing := "s"
+var dead := false
+
+var _attack_cd := 0.0
+var _special_cd := 0.0
+var _iframes := 0.0
+var _attack_anim := 0.0
+var _stamina_delay := 0.0
+var _knock := Vector2.ZERO
+
+var _sprite: AnimatedSprite2D
+var _light: PointLight2D
+
+
+func _ready() -> void:
+	add_to_group("player")
+	collision_layer = 2
+	collision_mask = 1 | 4
+	var shape := CollisionShape2D.new()
+	var circle := CircleShape2D.new()
+	circle.radius = 7.0
+	shape.shape = circle
+	shape.position = Vector2(0, -4)
+	add_child(shape)
+	_build_sprite()
+	var cam := Camera2D.new()
+	cam.zoom = Vector2(1.6, 1.6)
+	cam.position_smoothing_enabled = true
+	cam.position_smoothing_speed = 8.0
+	add_child(cam)
+	cam.make_current()
+	_light = PointLight2D.new()
+	_light.texture = load("res://assets/fx/light.png")
+	_light.color = Color(1.0, 0.85, 0.6)
+	_light.texture_scale = 1.3
+	_light.energy = 0.0
+	add_child(_light)
+	add_item("wooden_sword", 1)
+	add_item("berries", 5)
+	add_item("wood", 4)
+	add_item("stone", 2)
+	equipped = "wooden_sword"
+
+
+func _build_sprite() -> void:
+	var tex: Texture2D = load("res://assets/chars/player_sheet.png")
+	_sprite = AnimatedSprite2D.new()
+	_sprite.sprite_frames = build_char_frames(tex)
+	_sprite.offset = Vector2(0, -22)
+	_sprite.animation = "idle_s"
+	add_child(_sprite)
+	_sprite.play("idle_s")
+
+
+## Shared by Player and Zombie: sheet rows 0-2 walk S/E/N, rows 3-5 attack.
+static func build_char_frames(tex: Texture2D) -> SpriteFrames:
+	var fw := 32
+	var fh := 48
+	var frames := SpriteFrames.new()
+	frames.remove_animation("default")
+	var dirs := ["s", "e", "n"]
+	for row in 3:
+		var d: String = dirs[row]
+		frames.add_animation("walk_" + d)
+		frames.set_animation_speed("walk_" + d, 9.0)
+		frames.set_animation_loop("walk_" + d, true)
+		for f in 4:
+			var at := AtlasTexture.new()
+			at.atlas = tex
+			at.region = Rect2(f * fw, row * fh, fw, fh)
+			frames.add_frame("walk_" + d, at)
+		frames.add_animation("idle_" + d)
+		frames.set_animation_loop("idle_" + d, true)
+		var idle := AtlasTexture.new()
+		idle.atlas = tex
+		idle.region = Rect2(0, row * fh, fw, fh)
+		frames.add_frame("idle_" + d, idle)
+		frames.add_animation("attack_" + d)
+		frames.set_animation_speed("attack_" + d, 12.0)
+		frames.set_animation_loop("attack_" + d, false)
+		for f in 2:
+			var at2 := AtlasTexture.new()
+			at2.atlas = tex
+			at2.region = Rect2(f * fw, (row + 3) * fh, fw, fh)
+			frames.add_frame("attack_" + d, at2)
+	return frames
+
+
+# ------------------------------------------------------------ main loop -----
+func _physics_process(delta: float) -> void:
+	if dead:
+		return
+	_attack_cd = maxf(0.0, _attack_cd - delta)
+	_special_cd = maxf(0.0, _special_cd - delta)
+	_iframes = maxf(0.0, _iframes - delta)
+	_attack_anim = maxf(0.0, _attack_anim - delta)
+	_stamina_delay = maxf(0.0, _stamina_delay - delta)
+
+	var input_dir := Input.get_vector("move_left", "move_right", "move_up", "move_down")
+	var sprinting: bool = Input.is_action_pressed("sprint") and stamina > 1.0 and input_dir != Vector2.ZERO
+	var speed := SPRINT_SPEED if sprinting else WALK_SPEED
+	var move := input_dir.normalized() if input_dir != Vector2.ZERO else Vector2.ZERO
+	move.y *= 0.6  # isometric foreshortening
+	velocity = move * speed + _knock
+	_knock = _knock.move_toward(Vector2.ZERO, delta * 600.0)
+	move_and_slide()
+
+	if sprinting:
+		stamina = maxf(0.0, stamina - 12.0 * delta)
+		_stamina_delay = 0.8
+	elif _stamina_delay <= 0.0:
+		stamina = minf(100.0, stamina + 15.0 * delta)
+
+	_update_survival(delta)
+	_update_anim(input_dir)
+	_update_light()
+
+	if Input.is_action_pressed("attack") and _attack_cd <= 0.0 and not _ui_blocked():
+		_attack()
+
+
+func _update_survival(delta: float) -> void:
+	hunger = maxf(0.0, hunger - 0.16 * delta)
+	if hunger <= 0.0:
+		_apply_damage(1.2 * delta, true)
+	elif hunger > 70.0:
+		hp = minf(max_hp(), hp + 0.6 * delta)
+	if SkillTree.has_skill("second_wind") and hp < max_hp() * 0.3:
+		hp = minf(max_hp(), hp + 2.0 * delta)
+	mana = minf(max_mana(), mana + SkillTree.mana_regen() * delta)
+
+
+func _update_light() -> void:
+	_light.energy = Game.darkness() * 0.85
+
+
+func _update_anim(input_dir: Vector2) -> void:
+	if _attack_anim > 0.0:
+		return
+	var aim := _aim_dir()
+	var dir_source := input_dir if input_dir != Vector2.ZERO else aim
+	facing = _dir_name(dir_source)
+	var anim_dir := "e" if facing == "w" else facing
+	_sprite.flip_h = facing == "w"
+	var anim := ("walk_" if input_dir != Vector2.ZERO else "idle_") + anim_dir
+	if _sprite.animation != anim:
+		_sprite.play(anim)
+
+
+func _dir_name(v: Vector2) -> String:
+	if absf(v.x) > absf(v.y) * 1.2:
+		return "e" if v.x > 0 else "w"
+	return "s" if v.y > 0 else "n"
+
+
+func _aim_dir() -> Vector2:
+	var d := get_global_mouse_position() - position
+	return d.normalized() if d.length() > 2.0 else Vector2.DOWN
+
+
+func _ui_blocked() -> bool:
+	var world = Game.world
+	if world == null:
+		return false
+	if world.build_manager and world.build_manager.is_building():
+		return true
+	return world.hud and world.hud.ui_blocking()
+
+
+# --------------------------------------------------------------- combat -----
+func weapon_stats() -> Dictionary:
+	if equipped != "" and inventory.get(equipped, 0) > 0:
+		return ItemDB.get_item(equipped)
+	return FISTS
+
+
+func _attack() -> void:
+	var w := weapon_stats()
+	var kind: String = w["type"]
+	match kind:
+		"melee":
+			_melee_attack(w)
+		"bow":
+			_bow_attack(w)
+		"staff":
+			_staff_attack(w)
+
+
+func _play_attack_anim() -> void:
+	var aim := _aim_dir()
+	facing = _dir_name(aim)
+	var anim_dir := "e" if facing == "w" else facing
+	_sprite.flip_h = facing == "w"
+	_sprite.play("attack_" + anim_dir)
+	_attack_anim = 0.22
+
+
+func _melee_attack(w: Dictionary) -> void:
+	if stamina < 4.0:
+		return
+	stamina = maxf(0.0, stamina - 7.0)
+	_stamina_delay = 0.6
+	_attack_cd = float(w["cooldown"])
+	_play_attack_anim()
+	var aim := _aim_dir()
+	var origin := position + aim * 14.0
+	FX.slash(get_parent(), position + aim * 24.0 + Vector2(0, -14), aim.angle())
+	Game.play_sfx("swing", -6.0)
+	var dmg := float(w["dmg"]) * SkillTree.melee_mult()
+	var knockback := float(w.get("knockback", 60)) * SkillTree.knockback_mult()
+	# zombies in arc
+	var hit_zombies := []
+	for z in get_tree().get_nodes_in_group("zombies"):
+		var to_z: Vector2 = z.position - position
+		if to_z.length() < 46.0 and absf(aim.angle_to(to_z.normalized())) < 1.35:
+			hit_zombies.append(z)
+	if not hit_zombies.is_empty():
+		hit_zombies.sort_custom(func(a, b): return a.position.distance_squared_to(origin) < b.position.distance_squared_to(origin))
+		var count := hit_zombies.size() if SkillTree.has_skill("cleave") else 1
+		for i in mini(count, hit_zombies.size()):
+			hit_zombies[i].hit(dmg, position, knockback)
+	# harvest the closest node in the arc
+	var best: Node = null
+	var best_d := 52.0
+	for h in get_tree().get_nodes_in_group("harvestable"):
+		var to_h: Vector2 = h.position - position
+		if to_h.length() < best_d and absf(aim.angle_to(to_h.normalized())) < 1.35:
+			best = h
+			best_d = to_h.length()
+	if best:
+		best.hit(dmg)
+
+
+func _bow_attack(w: Dictionary) -> void:
+	if inventory.get("arrow", 0) <= 0:
+		FX.float_text(get_parent(), position, "no arrows!", Color(1, 0.6, 0.5))
+		_attack_cd = 0.4
+		return
+	remove_item("arrow", 1)
+	_attack_cd = float(w["cooldown"]) * SkillTree.bow_cooldown_mult()
+	_play_attack_anim()
+	Game.play_sfx("bow", -4.0)
+	var aim := _aim_dir()
+	var dmg := float(w["dmg"]) * SkillTree.bow_mult()
+	var angles := [0.0]
+	if SkillTree.has_skill("multishot"):
+		angles = [-0.16, 0.0, 0.16]
+	for a in angles:
+		_spawn_projectile("arrow", aim.rotated(a), dmg, SkillTree.arrow_pierce(), false)
+
+
+func _staff_attack(w: Dictionary) -> void:
+	var cost := float(w["mana"])
+	if mana < cost:
+		FX.float_text(get_parent(), position, "no mana!", Color(0.6, 0.7, 1))
+		_attack_cd = 0.4
+		return
+	mana -= cost
+	_attack_cd = float(w["cooldown"])
+	_play_attack_anim()
+	Game.play_sfx("magic", -6.0)
+	var dmg := float(w["dmg"]) * SkillTree.spell_mult()
+	_spawn_projectile("fire", _aim_dir(), dmg, 0, SkillTree.has_skill("fireball"))
+
+
+func _spawn_projectile(kind: String, dir: Vector2, dmg: float, pierce: int, explode: bool) -> void:
+	var p := preload("res://scripts/combat/Projectile.gd").new()
+	p.setup(kind, dir, dmg, pierce, explode)
+	p.position = position + dir * 12.0 + Vector2(0, -16)
+	get_parent().add_child(p)
+
+
+func _frost_nova() -> void:
+	if not SkillTree.has_skill("frost_nova") or _special_cd > 0.0 or mana < 20.0:
+		return
+	mana -= 20.0
+	_special_cd = 6.0
+	Game.play_sfx("frost")
+	FX.ring(get_parent(), position, 130.0, Color(0.6, 0.85, 1.0))
+	var dmg := 12.0 * SkillTree.spell_mult()
+	for z in get_tree().get_nodes_in_group("zombies"):
+		if z.position.distance_to(position) < 130.0:
+			z.apply_slow(0.4, 4.0)
+			z.hit(dmg, position, 40.0)
+
+
+func take_damage(amount: float, from_pos: Vector2) -> void:
+	if _iframes > 0.0 or dead:
+		return
+	_iframes = 0.6
+	_knock = (position - from_pos).normalized() * 140.0
+	Game.play_sfx("hurt")
+	_apply_damage(amount * SkillTree.damage_taken_mult(), false)
+	_sprite.modulate = Color(1, 0.4, 0.4)
+	var tw := create_tween()
+	tw.tween_property(_sprite, "modulate", Color.WHITE, 0.25)
+
+
+func _apply_damage(amount: float, quiet: bool) -> void:
+	hp -= amount
+	if not quiet:
+		FX.float_text(get_parent(), position, str(-int(maxf(1, amount))), Color(1, 0.5, 0.4))
+	if hp <= 0.0 and not dead:
+		dead = true
+		hp = 0.0
+		_sprite.modulate = Color(0.6, 0.5, 0.5)
+		emit_signal("died")
+		Game.world.game_over()
+
+
+# -------------------------------------------------------------- actions -----
+func _unhandled_input(event: InputEvent) -> void:
+	if dead:
+		return
+	if event.is_action_pressed("special"):
+		if not _ui_blocked():
+			_frost_nova()
+	elif event.is_action_pressed("interact"):
+		_interact()
+	elif event.is_action_pressed("weapon_1"):
+		_cycle_weapon("melee")
+	elif event.is_action_pressed("weapon_2"):
+		_cycle_weapon("bow")
+	elif event.is_action_pressed("weapon_3"):
+		_cycle_weapon("staff")
+
+
+func _interact() -> void:
+	var best: Node = null
+	var best_d := 52.0
+	for n in get_tree().get_nodes_in_group("interactable"):
+		var d: float = n.position.distance_to(position)
+		if d < best_d:
+			best = n
+			best_d = d
+	if best:
+		best.interact(self)
+
+
+func _cycle_weapon(kind: String) -> void:
+	var owned := []
+	for id in inventory:
+		if inventory[id] > 0 and ItemDB.get_item(id).get("type", "") == kind:
+			owned.append(id)
+	if owned.is_empty():
+		FX.float_text(get_parent(), position, "no %s weapon" % kind, Color(0.8, 0.8, 0.8))
+		return
+	owned.sort_custom(func(a, b): return ItemDB.get_item(a)["dmg"] < ItemDB.get_item(b)["dmg"])
+	if equipped in owned:
+		var idx := (owned.find(equipped) + 1) % owned.size()
+		equipped = owned[idx]
+	else:
+		equipped = owned[owned.size() - 1]
+	emit_signal("inventory_changed")
+
+
+func use_item(id: String) -> void:
+	if inventory.get(id, 0) <= 0:
+		return
+	var item := ItemDB.get_item(id)
+	match item.get("type", ""):
+		"food":
+			remove_item(id, 1)
+			hunger = minf(100.0, hunger + float(item.get("food", 0)))
+			hp = minf(max_hp(), hp + float(item.get("heal", 0)))
+			Game.play_sfx("eat")
+		"melee", "bow", "staff":
+			equipped = id
+			emit_signal("inventory_changed")
+		"buildable":
+			Game.world.hud.close_all_panels()
+			Game.world.build_manager.enter_build(id)
+
+
+# ------------------------------------------------------------ inventory -----
+func add_item(id: String, count := 1) -> void:
+	inventory[id] = inventory.get(id, 0) + count
+	emit_signal("inventory_changed")
+
+
+func remove_item(id: String, count := 1) -> bool:
+	if inventory.get(id, 0) < count:
+		return false
+	inventory[id] -= count
+	if inventory[id] <= 0:
+		inventory.erase(id)
+		if equipped == id:
+			equipped = ""
+	emit_signal("inventory_changed")
+	return true
+
+
+func has_all(cost: Dictionary) -> bool:
+	for mat in cost:
+		if inventory.get(mat, 0) < cost[mat]:
+			return false
+	return true
+
+
+func max_hp() -> float:
+	return 100.0 + SkillTree.bonus_hp()
+
+
+func max_mana() -> float:
+	return 50.0 + SkillTree.bonus_mana()
+
+
+func on_skills_changed() -> void:
+	hp = minf(hp, max_hp())
+	mana = minf(mana, max_mana())

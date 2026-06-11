@@ -131,18 +131,14 @@ def terrain_tile(ramp, seed, tufts=0, tuft_color=None, waves=False, wave_seed=No
                 continue
             n = value_noise(x, y, seed, scale=0.22)
             n += (rng.random() - 0.5) * 0.12
-            if n < 0.30:
+            if n < 0.18:
                 c = ramp[0]
             elif n < 0.55:
                 c = ramp[1]
-            elif n < 0.82:
+            elif n < 0.88:
                 c = ramp[2]
             else:
                 c = ramp[3]
-            # bottom edges read darker, top edges catch light
-            edge = abs((x + 0.5) / TILE_W * 2 - 1) + abs((y + 0.5) / TILE_H * 2 - 1)
-            if edge > 0.88:
-                c = shade(c, 0.82 if y > TILE_H / 2 else 1.08)
             px(im, x, y, c + (255,))
     for _ in range(tufts):
         tx = rng.randint(14, TILE_W - 14)
@@ -187,16 +183,73 @@ def cobble_tile(seed):
             px(im, jx - 1, jy - 1, shade(tone + (255,), 1.18))
             px(im, jx, jy - 1, shade(tone + (255,), 1.1))
             px(im, jx + 1, jy + 1, shade(tone + (255,), 0.8))
-    # clip to diamond + edge shading
+    # clip to diamond
     for y in range(TILE_H):
         for x in range(TILE_W):
             if not in_diamond(x, y):
                 px(im, x, y, (0, 0, 0, 0))
-            else:
-                edge = abs((x + 0.5) / TILE_W * 2 - 1) + abs((y + 0.5) / TILE_H * 2 - 1)
-                if edge > 0.88:
-                    cur = im.getpixel((x, y))
-                    px(im, x, y, shade(cur, 0.82 if y > TILE_H / 2 else 1.08))
+    return im
+
+
+
+
+FRINGE_RAMPS = {"grass": GRASS, "dirt": DIRT, "sand": SAND}
+
+
+def _mat_color(x, y, kind, rng):
+    if kind == "stone":
+        n = value_noise(x * 0.9, y * 1.1, 19.0)
+        c = STONE[2] if n > 0.5 else STONE[1]
+        if rng.random() < 0.18:
+            c = shade(STONE[0] + (255,), 0.8)[:3]
+        return c
+    ramp = FRINGE_RAMPS[kind]
+    n = value_noise(x, y, {"grass": 1, "dirt": 4, "sand": 6}[kind], scale=0.22)
+    n += (rng.random() - 0.5) * 0.12
+    if n < 0.18:
+        return ramp[0]
+    if n < 0.55:
+        return ramp[1]
+    if n < 0.88:
+        return ramp[2]
+    return ramp[3]
+
+
+def fringe_tile(kind, direction, seed):
+    """A transparent tile where `kind` bleeds in from one diamond edge
+    (nw/ne/sw/se) with an irregular, dithered boundary."""
+    im = new(TILE_W, TILE_H)
+    rng = random.Random(seed)
+    for y in range(TILE_H):
+        for x in range(TILE_W):
+            if not in_diamond(x, y):
+                continue
+            nx = (x + 0.5) / TILE_W * 2 - 1
+            ny = (y + 0.5) / TILE_H * 2 - 1
+            if direction == "nw":
+                s = nx + ny + 1
+                t = (nx - ny + 1) / 2
+            elif direction == "ne":
+                s = 1 - (nx - ny)
+                t = (nx + ny + 1) / 2
+            elif direction == "sw":
+                s = 1 + (nx - ny)
+                t = (nx + ny + 1) / 2
+            else:  # se
+                s = 1 - (nx + ny)
+                t = (nx - ny + 1) / 2
+            depth = 0.26 + 0.22 * value_noise(t * 11.0, seed * 2.0, 41.0 + seed)
+            c = _mat_color(x, y, kind, rng)
+            if s < depth:
+                px(im, x, y, c + (255,))
+            elif s < depth + 0.16 and rng.random() < 0.4:
+                px(im, x, y, c + (255,))  # dithered fade
+    if kind == "grass":
+        for i in range(3):
+            tx = rng.randint(8, TILE_W - 8)
+            ty = rng.randint(4, TILE_H - 5)
+            if im.getpixel((tx, ty))[3] > 0:
+                px(im, tx, ty - 1, GRASS[3] + (255,))
     return im
 
 
@@ -216,6 +269,10 @@ def build_terrain_atlas():
         cobble_tile(9),
         cobble_tile(10),
     ]
+    # fringe overlays, indices 11..26: mats x dirs (order must match World.gd)
+    for mi, mat in enumerate(["grass", "dirt", "sand", "stone"]):
+        for di, d in enumerate(["nw", "ne", "sw", "se"]):
+            cells.append(fringe_tile(mat, d, 50 + mi * 4 + di))
     cols = 5
     rows = (len(cells) + cols - 1) // cols
     atlas = new(cols * TILE_W, rows * TILE_H)

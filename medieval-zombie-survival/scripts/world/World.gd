@@ -13,7 +13,21 @@ const T_STONE := [9, 10]
 
 const ZOMBIE_CAP := 50
 
+# terrain blending: higher priority materials bleed onto lower neighbors
+const MAT_PRIORITY := {"grass": 4, "stone": 3, "dirt": 2, "sand": 1, "water": 0}
+const FRINGE_BASE := 11
+const FRINGE_MATS := ["grass", "dirt", "sand", "stone"]
+# neighbor offset -> fringe direction index (nw/ne/sw/se), also overlay layer
+const FRINGE_DIRS := {
+	Vector2i(-1, 0): 0,  # neighbor up-left bleeds over our NW edge
+	Vector2i(0, -1): 1,  # up-right -> NE
+	Vector2i(0, 1): 2,   # down-left -> SW
+	Vector2i(1, 0): 3,   # down-right -> SE
+}
+
 var tilemap: TileMapLayer
+var overlays: Array = []        # 4 fringe TileMapLayers (nw/ne/sw/se)
+var terrain_mat: Dictionary = {}  # Vector2i -> "grass"/"dirt"/"sand"/"water"/"stone"
 var decals: Node2D
 var entities: Node2D
 var build_manager: Node2D
@@ -51,6 +65,7 @@ func _ready() -> void:
 	_build_ruins()
 	_build_town()
 	_build_city()
+	_apply_blending()
 	_scatter_pickups()
 	_spawn_player()
 	build_manager = preload("res://scripts/world/BuildManager.gd").new()
@@ -95,7 +110,10 @@ func _build_tilemap() -> void:
 	src.texture = load("res://assets/tiles/terrain_atlas.png")
 	src.texture_region_size = TILE
 	ts.add_source(src, 0)
-	for i in [0, 1, 2, 3, 4, 5, 6, 9, 10]:  # 7, 8 are water animation frames
+	var tile_ids := [0, 1, 2, 3, 4, 5, 6, 9, 10]
+	for f_idx in range(FRINGE_BASE, FRINGE_BASE + 16):
+		tile_ids.append(f_idx)
+	for i in tile_ids:  # 7, 8 are water animation frames
 		var coords := Vector2i(i % 5, i / 5)
 		src.create_tile(coords)
 		if i == T_WATER:
@@ -112,6 +130,12 @@ func _build_tilemap() -> void:
 	tilemap.name = "Ground"
 	tilemap.tile_set = ts
 	add_child(tilemap)
+	for d in 4:
+		var ov := TileMapLayer.new()
+		ov.name = "Fringe%d" % d
+		ov.tile_set = ts
+		add_child(ov)
+		overlays.append(ov)
 
 
 func _atlas(i: int) -> Vector2i:
@@ -136,15 +160,19 @@ func _generate_terrain() -> void:
 			if e < -0.38:
 				idx = T_WATER
 				walkable[tile] = false
+				terrain_mat[tile] = "water"
 			elif e < -0.30:
 				idx = T_SAND
 				walkable[tile] = true
+				terrain_mat[tile] = "sand"
 			elif detail.get_noise_2d(x, y) > 0.42:
 				idx = T_DIRT[absi(x * 3 + y * 5) % 2]
 				walkable[tile] = true
+				terrain_mat[tile] = "dirt"
 			else:
 				idx = T_GRASS[absi(x * 11 + y * 17) % 3]
 				walkable[tile] = true
+				terrain_mat[tile] = "grass"
 			tilemap.set_cell(tile, 0, _atlas(idx))
 
 
@@ -208,6 +236,7 @@ func _build_ruins() -> void:
 			for dy in range(-2, 3):
 				var tile := Vector2i(cx + dx, cy + dy)
 				tilemap.set_cell(tile, 0, _atlas(T_STONE[absi(dx * 3 + dy) % 2]))
+				terrain_mat[tile] = "stone"
 				var node: Node = occupied.get(tile)
 				if node:
 					occupied.erase(tile)
@@ -267,6 +296,7 @@ func _clear_tile(t: Vector2i) -> void:
 
 func _pave(t: Vector2i, idx: int) -> void:
 	tilemap.set_cell(t, 0, _atlas(idx))
+	terrain_mat[t] = "stone" if idx in T_STONE else "dirt"
 	walkable[t] = true
 	_clear_tile(t)
 
@@ -279,6 +309,7 @@ func _build_town() -> void:
 			_clear_tile(t)
 			if not walkable.get(t, false):
 				tilemap.set_cell(t, 0, _atlas(T_GRASS[absi(x * 11 + y * 17) % 3]))
+				terrain_mat[t] = "grass"
 				walkable[t] = true
 	# cobbled plaza
 	for x in range(44, 52):
@@ -356,6 +387,7 @@ func _build_city() -> void:
 			var t := Vector2i(x, y)
 			_clear_tile(t)
 			tilemap.set_cell(t, 0, _atlas(T_GRASS[absi(x * 11 + y * 17) % 3]))
+			terrain_mat[t] = "grass"
 			walkable[t] = true
 	# perimeter walls with a south gate at x 69-71
 	var gate_xs := [69, 70, 71]
@@ -428,6 +460,24 @@ func _city_wall(t: Vector2i) -> void:
 	_clear_tile(t)
 	_spawn_resource("city_wall", t)
 	walkable[t] = false
+
+
+## Lay fringe tiles so higher-priority terrain bleeds over its neighbors.
+func _apply_blending() -> void:
+	for n in terrain_mat:
+		var n_pri: int = MAT_PRIORITY.get(terrain_mat[n], 0)
+		for off in FRINGE_DIRS:
+			var t: Vector2i = n + off
+			if not terrain_mat.has(t):
+				continue
+			var t_mat: String = terrain_mat[t]
+			if MAT_PRIORITY.get(t_mat, 0) <= n_pri:
+				continue
+			var mi := FRINGE_MATS.find(t_mat)
+			if mi < 0:
+				continue
+			var d: int = FRINGE_DIRS[off]
+			overlays[d].set_cell(n, 0, _atlas(FRINGE_BASE + mi * 4 + d))
 
 
 # ------------------------------------------------------------- zombies ------

@@ -64,12 +64,12 @@ func _ready() -> void:
 	_light.texture_scale = 1.3
 	_light.energy = 0.0
 	add_child(_light)
-	add_item("wooden_sword", 1)
-	add_item("berries", 4)
-	add_item("bandage", 1)
-	add_item("wood", 4)
-	add_item("stone", 2)
-	equipped = "wooden_sword"
+	var bg := Game.bg_def()
+	for id in bg["kit"]:
+		add_item(id, bg["kit"][id])
+	equipped = bg.get("equip", "")
+	hp = max_hp()
+	mana = minf(mana, max_mana())
 
 
 func _build_sprite() -> void:
@@ -356,7 +356,7 @@ func _bow_attack(w: Dictionary) -> void:
 	Game.play_sfx("bow", -4.0)
 	Game.world.alert_zombies(position, 60.0)  # bows are quiet: the smart choice
 	var aim := _aim_dir()
-	var crit_roll := _roll_crit(float(w["dmg"]) * SkillTree.bow_mult())
+	var crit_roll := _roll_crit(float(w["dmg"]) * SkillTree.bow_mult() * float(Game.bg_def().get("bow_mult", 1.0)))
 	var dmg: float = crit_roll[0]
 	var angles := [0.0]
 	if SkillTree.has_skill("multishot"):
@@ -534,11 +534,11 @@ func has_all(cost: Dictionary) -> bool:
 
 
 func max_hp() -> float:
-	return 100.0 + SkillTree.bonus_hp()
+	return 100.0 + SkillTree.bonus_hp() + float(Game.bg_def().get("hp_bonus", 0))
 
 
 func max_mana() -> float:
-	return 50.0 + SkillTree.bonus_mana()
+	return 50.0 + SkillTree.bonus_mana() + float(Game.bg_def().get("mana_bonus", 0))
 
 
 func _set_zoom(value: float) -> void:

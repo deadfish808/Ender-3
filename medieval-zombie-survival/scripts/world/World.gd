@@ -45,6 +45,7 @@ var rng := RandomNumberGenerator.new()
 var _spawn_timer := 0.0
 var _groan_timer := 0.0
 var weather := "clear"  # "clear" | "rain"
+var _crow_timer := 8.0
 var _weather_timer := 50.0
 var _rain: CPUParticles2D
 var _rain_audio: AudioStreamPlayer
@@ -75,6 +76,8 @@ func _ready() -> void:
 	_build_city()
 	_apply_blending()
 	_scatter_clutter()
+	for i in 10:
+		_maybe_spawn_crow()
 	_scatter_pickups()
 	_spawn_player()
 	build_manager = preload("res://scripts/world/BuildManager.gd").new()
@@ -85,7 +88,7 @@ func _ready() -> void:
 	hud = preload("res://scripts/ui/HUD.gd").new()
 	add_child(hud)
 	Game.day_started.connect(func(d): hud.announce("Day %d" % d, Color(1, 0.95, 0.7)))
-	Game.night_started.connect(func(_d): hud.announce("Night falls... the dead stir", Color(0.7, 0.75, 1.0)))
+	Game.night_started.connect(_on_night)
 	Game.level_gained.connect(func(l): hud.announce("Level %d — skill point earned [K]" % l, Color(0.6, 1.0, 0.6)))
 	hud.announce("Day 1 — gather, craft, build. Survive the night.", Color(1, 0.95, 0.7))
 	if OS.get_environment("MZS_SHOT_DIR") != "":
@@ -102,6 +105,10 @@ func _process(delta: float) -> void:
 		_spawn_timer = 9.0 if _population_peaked() else 2.5
 		_try_spawn_zombie()
 	_update_weather(delta)
+	_crow_timer -= delta
+	if _crow_timer <= 0.0:
+		_crow_timer = 16.0
+		_maybe_spawn_crow()
 	_groan_timer -= delta
 	if _groan_timer <= 0.0:
 		_groan_timer = rng.randf_range(6.0, 14.0)
@@ -672,6 +679,54 @@ func station_nearby(tag: String) -> bool:
 		if s.position.distance_to(Game.player.position) < 120.0:
 			return true
 	return false
+
+
+func _on_night(day: int) -> void:
+	if day >= 3 and day % 3 == 0:
+		hud.announce("A horde approaches from the dark!", Color(1.0, 0.45, 0.4))
+		_spawn_horde()
+	else:
+		hud.announce("Night falls... the dead stir", Color(0.7, 0.75, 1.0))
+
+
+## Every third night a horde forms at the map edge and shambles toward
+## where you were when it formed. Move, hide, or hold the line.
+func _spawn_horde() -> void:
+	if Game.player == null or not is_instance_valid(Game.player):
+		return
+	var count := mini(8 + Game.day * 2, 32)
+	var ang := rng.randf() * TAU
+	var center: Vector2 = Game.player.position + Vector2(cos(ang), sin(ang) * 0.5) * 850.0
+	var spawned := 0
+	for attempt in count * 6:
+		if spawned >= count:
+			break
+		var pos := center + Vector2(rng.randf_range(-120, 120), rng.randf_range(-70, 70))
+		var tile := world_to_tile(pos)
+		if not walkable.get(tile, false) or occupied.has(tile):
+			continue
+		var z := preload("res://scripts/enemies/Zombie.gd").new()
+		z.setup(_pick_zombie_type())
+		z.position = tile_to_world(tile)
+		entities.add_child(z)
+		z.hear_noise.call_deferred(Game.player.position)
+		spawned += 1
+
+
+func _maybe_spawn_crow() -> void:
+	if get_tree().get_nodes_in_group("crows").size() >= 10:
+		return
+	for attempt in 10:
+		var tile := Vector2i(rng.randi_range(6, MAP_SIZE - 7), rng.randi_range(6, MAP_SIZE - 7))
+		if terrain_mat.get(tile, "") != "grass" or occupied.has(tile):
+			continue
+		var pos := tile_to_world(tile)
+		if Game.player and is_instance_valid(Game.player) and pos.distance_to(Game.player.position) < 350.0:
+			continue
+		var crow := preload("res://scripts/world/Crow.gd").new()
+		crow.position = pos
+		entities.add_child(crow)
+		return
 
 
 # ------------------------------------------------------------- weather ------

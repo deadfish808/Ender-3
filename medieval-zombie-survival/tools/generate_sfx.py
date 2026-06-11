@@ -135,6 +135,8 @@ def main():
         t = i / n_fade
         rain[i] = rain[i] * t + rain[len(rain) - n_fade + i] * (1 - t)
     write_wav("rain", rain[:len(rain) - n_fade])
+    write_wav("crow", mix(tone(0.16, 620, 380, vol=0.45, wave_kind="square", vibrato=22),
+                          noise_sound(0.16, 0.5, 0.3, vol=0.25)))
     print("done")
 
 

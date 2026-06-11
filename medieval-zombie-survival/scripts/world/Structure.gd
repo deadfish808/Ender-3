@@ -7,11 +7,15 @@ var max_hp := 100.0
 var hp := 100.0
 var is_door := false
 var door_open := false
+var is_garden := false
+var garden_state := "empty"  # empty -> growing -> ready
+var _grow_left := 0.0
 
 var _cfg: Dictionary
 var _sprite: Node2D  # Sprite2D or AnimatedSprite2D
 var _shape: CollisionShape2D
 var _bar: Node2D
+var _light: PointLight2D
 
 
 func setup(p_item: String, p_tile: Vector2i) -> void:
@@ -21,6 +25,7 @@ func setup(p_item: String, p_tile: Vector2i) -> void:
 	max_hp = float(_cfg["hp"])
 	hp = max_hp
 	is_door = _cfg.get("door", false)
+	is_garden = _cfg.get("garden", false)
 
 
 func _ready() -> void:
@@ -55,6 +60,8 @@ func _ready() -> void:
 		])
 		_shape.shape = poly
 		add_child(_shape)
+	if is_garden:
+		set_process(true)
 	if _cfg.get("light", false):
 		add_child(preload("res://scripts/world/Building.gd")._make_smoke(Vector2(0, -26)))
 		var light := PointLight2D.new()
@@ -84,6 +91,17 @@ func _ready() -> void:
 	add_child(_bar)
 
 
+func _process(delta: float) -> void:
+	if _light:
+		# firelight flicker
+		_light.energy = 1.1 * (0.88 + 0.12 * sin(Time.get_ticks_msec() / 90.0 + position.x))
+	if is_garden and garden_state == "growing":
+		_grow_left -= delta
+		if _grow_left <= 0.0:
+			garden_state = "ready"
+			(_sprite as Sprite2D).texture = load(_cfg["texture_ready"])
+
+
 func _spike_tick(area: Area2D) -> void:
 	var victims := area.get_overlapping_bodies()
 	for body in victims:
@@ -110,6 +128,28 @@ func damage(amount: float, silent := false) -> void:
 
 
 func interact(player: Node) -> void:
+	if is_garden:
+		match garden_state:
+			"empty":
+				if player.inventory.get("berries", 0) >= 2:
+					player.remove_item("berries", 2)
+					garden_state = "growing"
+					_grow_left = Game.setting("day_length") * 0.8
+					(_sprite as Sprite2D).texture = load(_cfg["texture_sprout"])
+					Game.play_sfx("build", -6.0)
+					FX.float_text(get_parent(), position, "planted", Color(0.6, 1.0, 0.6))
+				else:
+					FX.float_text(get_parent(), position, "needs 2 berries", Color(0.9, 0.8, 0.6))
+			"growing":
+				FX.float_text(get_parent(), position, "still growing...", Color(0.7, 0.9, 0.7))
+			"ready":
+				garden_state = "empty"
+				(_sprite as Sprite2D).texture = load(_cfg["texture"])
+				var crop := randi_range(6, 10)
+				Game.world.spawn_pickup("berries", crop, position + Vector2(0, 10))
+				Game.add_xp(4)
+				Game.play_sfx("pickup")
+		return
 	if is_door:
 		door_open = not door_open
 		_shape.set_deferred("disabled", door_open)

@@ -35,6 +35,7 @@ const ITEMS := {
 	"spike_trap": {"name": "Spike Trap", "desc": "Iron spikes that shred zombies who walk over them.", "type": "buildable"},
 	"campfire": {"name": "Campfire", "desc": "Light, warmth, and a place to cook.", "type": "buildable"},
 	"workbench": {"name": "Workbench", "desc": "Needed to craft advanced gear and stone walls.", "type": "buildable"},
+	"garden_plot": {"name": "Garden Plot", "desc": "Tilled earth. Plant 2 berries (E), wait a day, harvest a crop.", "type": "buildable"},
 }
 
 ## station: "" = anywhere, "workbench"/"campfire" = must stand near one.
@@ -52,6 +53,7 @@ const RECIPES := [
 	{"out": "barricade", "count": 1, "cost": {"wood": 2}, "station": ""},
 	{"out": "wooden_door", "count": 1, "cost": {"wood": 4, "rope": 1}, "station": ""},
 	{"out": "spike_trap", "count": 1, "cost": {"wood": 3, "flint": 2}, "station": ""},
+	{"out": "garden_plot", "count": 1, "cost": {"wood": 3, "fiber": 2}, "station": ""},
 	{"out": "stew", "count": 1, "cost": {"mushroom": 2, "berries": 1}, "station": "campfire"},
 	{"out": "salve", "count": 1, "cost": {"berries": 3, "cloth": 1}, "station": "campfire"},
 	{"out": "remedy", "count": 1, "cost": {"essence": 2, "berries": 2, "cloth": 1}, "station": "campfire"},
@@ -71,6 +73,9 @@ const BUILDABLES := {
 	"campfire": {"hp": 80, "texture": "res://assets/buildables/campfire.png", "blocks": false,
 			"frames": 4, "frame_size": Vector2i(80, 88), "light": true, "station": "campfire"},
 	"workbench": {"hp": 140, "texture": "res://assets/buildables/workbench.png", "blocks": true, "station": "workbench"},
+	"garden_plot": {"hp": 60, "texture": "res://assets/buildables/garden_plot.png", "blocks": false, "garden": true,
+			"texture_sprout": "res://assets/buildables/garden_sprout.png",
+			"texture_ready": "res://assets/buildables/garden_ready.png"},
 }
 
 var _icon_cache: Dictionary = {}

@@ -40,7 +40,27 @@ const OPTION_DEFS := [
 ]
 const SETTINGS_PATH := "user://settings.cfg"
 
+## Starting backgrounds, chosen on the menu (Project Zomboid occupations).
+const BACKGROUNDS := [
+	{"id": "villager", "name": "Villager",
+		"desc": "A balanced start: sword, food, and a bandage.",
+		"kit": {"wooden_sword": 1, "berries": 4, "bandage": 1, "wood": 4, "stone": 2}, "equip": "wooden_sword"},
+	{"id": "soldier", "name": "Soldier",
+		"desc": "Iron sword and +20 health, but set in his ways: -25% XP.",
+		"kit": {"iron_sword": 1, "berries": 3, "bandage": 1}, "equip": "iron_sword",
+		"hp_bonus": 20, "xp_mult": 0.75},
+	{"id": "hunter", "name": "Hunter",
+		"desc": "Bow, a quiver of arrows, and +15% bow damage.",
+		"kit": {"wooden_bow": 1, "arrow": 14, "berries": 4, "bandage": 1}, "equip": "wooden_bow",
+		"bow_mult": 1.15},
+	{"id": "apprentice", "name": "Mage Apprentice",
+		"desc": "A staff, some essence, and +20 mana. Frail bookworm: -10 health.",
+		"kit": {"apprentice_staff": 1, "essence": 3, "berries": 4}, "equip": "apprentice_staff",
+		"mana_bonus": 20, "hp_bonus": -10},
+]
+
 var settings: Dictionary = {}
+var background := "villager"
 
 var day := 1
 var time_of_day := 0.04  # ~07:00
@@ -59,7 +79,7 @@ var _sfx_next := 0
 
 const SFX_NAMES := [
 	"swing", "hit", "bow", "magic", "frost", "hurt", "zombie", "zombie_hit",
-	"build", "pickup", "craft", "levelup", "explosion", "eat", "door",
+	"build", "pickup", "craft", "levelup", "explosion", "eat", "door", "crow",
 ]
 
 
@@ -107,12 +127,14 @@ func _load_settings() -> void:
 	if cfg.load(SETTINGS_PATH) == OK:
 		for def in OPTION_DEFS:
 			settings[def["key"]] = cfg.get_value("sandbox", def["key"], settings[def["key"]])
+		background = cfg.get_value("player", "background", "villager")
 
 
 func _save_settings() -> void:
 	var cfg := ConfigFile.new()
 	for def in OPTION_DEFS:
 		cfg.set_value("sandbox", def["key"], settings[def["key"]])
+	cfg.set_value("player", "background", background)
 	cfg.save(SETTINGS_PATH)
 
 
@@ -158,8 +180,20 @@ func xp_needed() -> int:
 	return 40 + level * 30
 
 
+func bg_def() -> Dictionary:
+	for b in BACKGROUNDS:
+		if b["id"] == background:
+			return b
+	return BACKGROUNDS[0]
+
+
+func set_background(id: String) -> void:
+	background = id
+	_save_settings()
+
+
 func add_xp(amount: int) -> void:
-	xp += maxi(1, roundi(amount * setting("xp_rate")))
+	xp += maxi(1, roundi(amount * setting("xp_rate") * float(bg_def().get("xp_mult", 1.0))))
 	while xp >= xp_needed():
 		xp -= xp_needed()
 		level += 1

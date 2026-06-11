@@ -93,4 +93,5 @@ static func _make_smoke(at: Vector2) -> CPUParticles2D:
 func _process(_delta: float) -> void:
 	if _light:
 		var base: float = 0.45 if _cfg.get("always_lit", false) else 0.0
-		_light.energy = base + Game.darkness() * float(_cfg["light_energy"])
+		var flicker := 0.92 + 0.08 * sin(Time.get_ticks_msec() / 110.0 + position.x * 0.1)
+		_light.energy = (base + Game.darkness() * float(_cfg["light_energy"])) * flicker

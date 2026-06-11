@@ -91,6 +91,20 @@ Zomboid style — and saved between sessions: zombie population / speed /
 strength / senses, wound & bleeding chance, loot abundance, XP rate, and day
 length. There is no pausing once you are in.
 
+### Backgrounds
+
+Pick a background on the menu, Project Zomboid-occupation style: Villager
+(balanced), Soldier (iron sword, +20 HP, -25% XP), Hunter (bow, arrows, +15%
+bow damage), or Mage Apprentice (staff, essence, +20 mana, -10 HP).
+
+### Horde nights & farming
+
+Every third night a **horde** forms in the dark and shambles toward where you
+were standing — hold your walls or be somewhere else. For the long game, craft
+**garden plots** (3 wood, 2 fiber), plant 2 berries, and harvest a renewable
+crop each day. Startled **crows** flush noisily when anything approaches —
+yours isn't the only thing they flee from, so watch the treeline.
+
 ### More ways to die (and outsmart it)
 
 - **Infection**: an untreated wound can fester. Infection slowly drains your

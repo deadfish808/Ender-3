@@ -3,6 +3,7 @@ extends Control
 ## itself never pauses — difficulty is decided here, before you step in.
 
 var _rows: VBoxContainer
+var _bg_row: HBoxContainer
 var _shot_frame := 0
 
 
@@ -49,6 +50,13 @@ func _ready() -> void:
 	var header := UIKit.label("SANDBOX DIFFICULTY", 14, Color(0.9, 0.55, 0.4))
 	header.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	pbox.add_child(header)
+	var bg_header := UIKit.label("BACKGROUND", 14, Color(0.55, 0.85, 0.5))
+	bg_header.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	pbox.add_child(bg_header)
+	_bg_row = HBoxContainer.new()
+	_bg_row.add_theme_constant_override("separation", 10)
+	pbox.add_child(_bg_row)
+	pbox.add_child(HSeparator.new())
 	_rows = VBoxContainer.new()
 	_rows.add_theme_constant_override("separation", 4)
 	pbox.add_child(_rows)
@@ -68,6 +76,24 @@ func _refresh() -> void:
 		c.queue_free()
 	for def in Game.OPTION_DEFS:
 		_rows.add_child(_option_row(def))
+	for c in _bg_row.get_children():
+		c.queue_free()
+	var bg := Game.bg_def()
+	var idx := 0
+	for i in Game.BACKGROUNDS.size():
+		if Game.BACKGROUNDS[i]["id"] == bg["id"]:
+			idx = i
+	var btn := UIKit.button("< %s >" % bg["name"], 13)
+	btn.custom_minimum_size = Vector2(190, 0)
+	btn.pressed.connect(func():
+		var next: int = (idx + 1) % int(Game.BACKGROUNDS.size())
+		Game.set_background(Game.BACKGROUNDS[next]["id"])
+		_refresh())
+	_bg_row.add_child(btn)
+	var desc := UIKit.label(bg["desc"], 11, UIKit.TEXT_DIM)
+	desc.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_bg_row.add_child(desc)
 
 
 func _option_row(def: Dictionary) -> Control:

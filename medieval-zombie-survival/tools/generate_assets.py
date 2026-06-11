@@ -2157,6 +2157,73 @@ def make_clutter():
         save(img, "clutter/%s.png" % name)
 
 
+def garden_sprites():
+    """Three growth stages for the buildable garden plot."""
+    def plot_base():
+        im = new(64, 40)
+        for y in range(TILE_H):
+            for x in range(64):
+                if in_diamond(x, y):
+                    yy = (x + y * 2) % 8
+                    c = DIRT[1] if yy < 5 else DIRT[0]
+                    if value_noise(x, y, 27.0) > 0.8:
+                        c = DIRT[2]
+                    px(im, x, y + 8, c + (255,))
+        # wooden border
+        for y in range(TILE_H):
+            for x in range(64):
+                if in_diamond(x, y) and not in_diamond(x, y + 1):
+                    px(im, x, y + 8, WOOD[1] + (255,))
+                if in_diamond(x, y) and not in_diamond(x, y - 1):
+                    px(im, x, y + 7, WOOD[0] + (255,))
+        return im
+
+    save(outline(plot_base()), "buildables/garden_plot.png")
+    im = plot_base()
+    rng = random.Random(11)
+    for sx, sy in ((22, 22), (32, 18), (42, 23), (27, 27), (37, 27), (32, 23)):
+        line(im, sx, sy, sx, sy - 2, GRASS[2] + (255,))
+        px(im, sx - 1, sy - 2, GRASS[3] + (255,))
+        px(im, sx + 1, sy - 1, GRASS[2] + (255,))
+    save(outline(im), "buildables/garden_sprout.png")
+    im = plot_base()
+    for bx, by in ((22, 20), (33, 16), (42, 21), (28, 26)):
+        draw_canopy(im, bx, by, 4, LEAF, rng)
+        for i in range(4):
+            fx = bx + rng.randint(-3, 3)
+            fy = by + rng.randint(-2, 2)
+            px(im, fx, fy, (146, 38, 42, 255))
+            px(im, fx + 1, fy, (176, 62, 58, 255))
+    save(outline(im), "buildables/garden_ready.png")
+
+
+def crow_sheet():
+    """Tiny crow: 2 ground frames (peck), 2 flight frames."""
+    sheet = new(12 * 4, 12)
+    for f in range(4):
+        im = new(12, 12)
+        if f < 2:
+            # standing / pecking
+            head_y = 4 if f == 0 else 6
+            disc(im, 5, 8, 2.6, 1.8, (24, 22, 30, 255))      # body
+            px(im, 7, 7, (38, 36, 46, 255))
+            disc(im, 7 if f == 0 else 8, head_y, 1.4, 1.4, (24, 22, 30, 255))
+            px(im, 9, head_y, (188, 150, 60, 255))           # beak
+            px(im, 7, head_y - 1, (210, 205, 200, 255))      # eye glint
+            px(im, 4, 10, (30, 28, 36, 255))
+            px(im, 6, 10, (30, 28, 36, 255))
+            px(im, 2, 7, (32, 30, 40, 255))                  # tail
+        else:
+            # flying: wings up / down
+            disc(im, 6, 6, 2.4, 1.5, (24, 22, 30, 255))
+            px(im, 8, 5, (188, 150, 60, 255))
+            wing_y = 2 if f == 2 else 9
+            line(im, 5, 6, 2, wing_y, (30, 28, 38, 255), w=2)
+            line(im, 7, 6, 10, wing_y, (30, 28, 38, 255), w=2)
+        sheet.paste(outline(im), (f * 12, 0))
+    return sheet
+
+
 def make_town_buildings():
     save(make_building(3, 3, 30, 26, "timber", sd=0.0, door_fx=48,
                        windows_left=(20,), windows_right=(28, 62), chimney=(16, False)),
@@ -2180,6 +2247,8 @@ def make_town_buildings():
          "buildings/manor.png")
     save(well_sprite(), "buildings/well.png")
     save(lamp_post_sprite(), "buildings/lamp_post.png")
+    garden_sprites()
+    save(crow_sheet(), "props/crow.png")
     save(fence_sprite(), "props/fence.png")
     save(cart_sprite(), "props/cart.png")
     save(woodpile_sprite(), "props/woodpile.png")

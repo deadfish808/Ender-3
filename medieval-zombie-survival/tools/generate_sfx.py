@@ -128,6 +128,13 @@ def main():
                             noise_sound(0.06, 0.3, 0.2, vol=0.35)))
     write_wav("door", mix(noise_sound(0.18, 0.2, 0.4, vol=0.4),
                           tone(0.18, 140, 200, vol=0.3, wave_kind="triangle")))
+    # seamless-ish rain loop: steady filtered noise
+    rain = noise_sound(2.0, 0.25, 0.25, vol=0.35, attack=0.0)
+    n_fade = int(0.1 * RATE)
+    for i in range(n_fade):  # crossfade tail into head for looping
+        t = i / n_fade
+        rain[i] = rain[i] * t + rain[len(rain) - n_fade + i] * (1 - t)
+    write_wav("rain", rain[:len(rain) - n_fade])
     print("done")
 
 

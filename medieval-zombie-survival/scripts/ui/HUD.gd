@@ -11,14 +11,13 @@ var weapon_label: Label
 var xp_bar: ProgressBar
 var level_label: Label
 var skill_hint: Label
-var bleed_label: Label
+var moodles: Dictionary = {}  # status name -> Label
 var message_box: VBoxContainer
 
 var inventory_panel: Control
 var crafting_panel: Control
 var build_panel: Control
 var skills_panel: Control
-var options_panel: Control
 var _root: Control
 var _game_over: Control
 
@@ -48,8 +47,7 @@ func _ready() -> void:
 	crafting_panel = preload("res://scripts/ui/CraftingUI.gd").new()
 	build_panel = preload("res://scripts/ui/BuildMenuUI.gd").new()
 	skills_panel = preload("res://scripts/ui/SkillTreeUI.gd").new()
-	options_panel = preload("res://scripts/ui/OptionsUI.gd").new()
-	for p in [inventory_panel, crafting_panel, build_panel, skills_panel, options_panel]:
+	for p in [inventory_panel, crafting_panel, build_panel, skills_panel]:
 		p.visible = false
 		p.set_anchors_preset(Control.PRESET_CENTER)
 		p.grow_horizontal = Control.GROW_DIRECTION_BOTH
@@ -74,9 +72,15 @@ func _build_stats() -> void:
 		row.add_child(lbl)
 		row.add_child(pair[1])
 		box.add_child(row)
-	bleed_label = UIKit.label("BLEEDING — use a bandage!", 12, Color(1.0, 0.32, 0.28))
-	bleed_label.visible = false
-	box.add_child(bleed_label)
+	for moodle in [["BLEEDING — bandage it!", Color(1.0, 0.32, 0.28)],
+			["INFECTED — find a remedy!", Color(0.78, 0.5, 0.92)],
+			["EXHAUSTED", Color(0.9, 0.85, 0.4)],
+			["STARVING", Color(0.95, 0.6, 0.3)],
+			["SOAKED", Color(0.55, 0.7, 0.9)]]:
+		var ml: Label = UIKit.label(moodle[0], 12, moodle[1])
+		ml.visible = false
+		box.add_child(ml)
+		moodles[moodle[0]] = ml
 
 
 func _build_clock() -> void:
@@ -125,7 +129,7 @@ func _build_xp() -> void:
 
 func _build_hints() -> void:
 	var hints := UIKit.label(
-		"[WASD] move   [Shift] sprint   [Space] dodge   [LMB] attack/harvest   [RMB] frost nova   [E] interact   [1/2/3] weapons   [Tab] inventory   [C] craft   [B] build   [K] skills   [Wheel] zoom   [Esc] options",
+		"[WASD] move   [Shift] sprint   [Space] dodge   [LMB] attack/harvest   [RMB] frost nova   [E] interact   [1/2/3] weapons   [Tab] inventory   [C] craft   [B] build   [K] skills   [Wheel] zoom",
 		11, UIKit.TEXT_DIM)
 	hints.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
 	hints.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -166,9 +170,15 @@ func _process(_delta: float) -> void:
 	mana_bar.max_value = player.max_mana()
 	mana_bar.value = player.mana
 	hunger_bar.value = player.hunger
-	bleed_label.visible = player.bleeding
-	if player.bleeding:
-		bleed_label.modulate.a = 0.6 + 0.4 * sin(Time.get_ticks_msec() / 180.0)
+	var pulse := 0.6 + 0.4 * sin(Time.get_ticks_msec() / 180.0)
+	moodles["BLEEDING — bandage it!"].visible = player.bleeding
+	moodles["INFECTED — find a remedy!"].visible = player.infected
+	moodles["EXHAUSTED"].visible = player.stamina < 20.0
+	moodles["STARVING"].visible = player.hunger <= 0.0
+	moodles["SOAKED"].visible = Game.world.weather == "rain"
+	for ml in moodles.values():
+		if ml.visible:
+			ml.modulate.a = pulse
 	var night_marker := "  (night)" if Game.is_night() else ""
 	time_label.text = "Day %d   %s%s" % [Game.day, Game.clock_text(), night_marker]
 	time_label.add_theme_color_override("font_color",
@@ -188,6 +198,8 @@ func _process(_delta: float) -> void:
 			extra = "\nmana cost: %d" % int(w.get("mana", 0))
 		_:
 			pass
+	if player.equipped != "":
+		extra += "\ncondition: %d%%" % player.weapon_condition(player.equipped)
 	weapon_label.text = str(w.get("name", "Fists")) + extra
 
 
@@ -204,13 +216,7 @@ func _unhandled_input(event: InputEvent) -> void:
 	elif event.is_action_pressed("toggle_skills"):
 		_toggle(skills_panel)
 	elif event.is_action_pressed("ui_cancel"):
-		if options_panel.visible:
-			close_options()
-		elif ui_blocking():
-			close_all_panels()
-		else:
-			open_options()
-		get_viewport().set_input_as_handled()
+		close_all_panels()
 
 
 func _toggle(panel: Control) -> void:
@@ -225,24 +231,10 @@ func _toggle(panel: Control) -> void:
 func close_all_panels() -> void:
 	for p in [inventory_panel, crafting_panel, build_panel, skills_panel]:
 		p.visible = false
-	if options_panel.visible:
-		close_options()
-
-
-func open_options() -> void:
-	options_panel.visible = true
-	options_panel.refresh()
-	get_tree().paused = true
-
-
-func close_options() -> void:
-	options_panel.visible = false
-	if _game_over == null:
-		get_tree().paused = false
 
 
 func ui_blocking() -> bool:
-	for p in [inventory_panel, crafting_panel, build_panel, skills_panel, options_panel]:
+	for p in [inventory_panel, crafting_panel, build_panel, skills_panel]:
 		if p.visible:
 			return true
 	return _game_over != null
@@ -252,7 +244,6 @@ func show_game_over() -> void:
 	if _game_over:
 		return
 	close_all_panels()
-	get_tree().paused = true
 	_game_over = Control.new()
 	_game_over.set_anchors_preset(Control.PRESET_FULL_RECT)
 	_root.add_child(_game_over)
@@ -276,12 +267,11 @@ func show_game_over() -> void:
 		[Game.day, "s" if Game.day > 1 else "", Game.kills, Game.level], 15)
 	stats.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	box.add_child(stats)
-	var btn := UIKit.button("Rise Again", 16)
+	var btn := UIKit.button("Return to the Menu", 16)
 	btn.pressed.connect(_restart)
 	box.add_child(btn)
 
 
 func _restart() -> void:
-	get_tree().paused = false
 	Game.reset_run()
-	get_tree().reload_current_scene()
+	get_tree().change_scene_to_file("res://scenes/Menu.tscn")

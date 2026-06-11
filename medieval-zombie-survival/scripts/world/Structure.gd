@@ -56,6 +56,7 @@ func _ready() -> void:
 		_shape.shape = poly
 		add_child(_shape)
 	if _cfg.get("light", false):
+		add_child(preload("res://scripts/world/Building.gd")._make_smoke(Vector2(0, -26)))
 		var light := PointLight2D.new()
 		light.texture = load("res://assets/fx/light.png")
 		light.color = Color(1.0, 0.75, 0.45)

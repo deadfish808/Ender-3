@@ -39,7 +39,7 @@ horde grows larger and more aggressive every day.
 | `B` | Build menu |
 | `K` | Skill trees |
 | Mouse wheel | Zoom in / out |
-| `Esc` | Options menu (pauses) / close panels / cancel build mode |
+| `Esc` | Close panels / cancel build mode |
 
 ### Survival loop
 
@@ -84,11 +84,24 @@ Zombies are densest inside the walled city, common around the town, and sparse
 in the wilderness. At night the population swells, senses sharpen, and runners
 come out.
 
-### Sandbox options (`Esc`)
+### Sandbox options (main menu)
 
-Every difficulty knob is adjustable in-game and saved between sessions:
-zombie population / speed / strength / senses, wound & bleeding chance, loot
-abundance, XP rate, and day length.
+Difficulty is configured on the main menu **before the run starts** — Project
+Zomboid style — and saved between sessions: zombie population / speed /
+strength / senses, wound & bleeding chance, loot abundance, XP rate, and day
+length. There is no pausing once you are in.
+
+### More ways to die (and outsmart it)
+
+- **Infection**: an untreated wound can fester. Infection slowly drains your
+  life and only a **Plague Remedy** cures it — loot one from city chests or
+  brew it at a campfire (2 essence, 2 berries, 1 cloth).
+- **Weapon wear**: weapons degrade with every swing and eventually break.
+  Check the condition readout on the HUD and carry a spare.
+- **Rain**: storms roll in, darken the world, and muffle your noise — the
+  smart time to hammer up defenses or slip past the horde.
+- **Moodles**: bleeding, infection, exhaustion, starvation and soaked status
+  flash under your stat bars.
 
 ### Skill trees
 

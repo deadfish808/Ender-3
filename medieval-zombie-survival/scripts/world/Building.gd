@@ -2,13 +2,13 @@ extends StaticBody2D
 ## A pre-built town building: large multi-tile scenery with collision and light.
 
 const CONFIG := {
-	"cottage_a": {"tex": "res://assets/buildings/cottage_a.png", "w": 3, "h": 3},
+	"cottage_a": {"tex": "res://assets/buildings/cottage_a.png", "w": 3, "h": 3, "smoke": Vector2(48, -100)},
 	"cottage_b": {"tex": "res://assets/buildings/cottage_b.png", "w": 3, "h": 3},
-	"tavern": {"tex": "res://assets/buildings/tavern.png", "w": 5, "h": 3},
+	"tavern": {"tex": "res://assets/buildings/tavern.png", "w": 5, "h": 3, "smoke": Vector2(48, -114)},
 	"forge": {"tex": "res://assets/buildings/forge.png", "w": 4, "h": 3,
 			"light": Vector2(48, -108), "light_color": Color(1.0, 0.62, 0.3),
-			"light_energy": 0.9, "always_lit": true},
-	"manor": {"tex": "res://assets/buildings/manor.png", "w": 6, "h": 3},
+			"light_energy": 0.9, "always_lit": true, "smoke": Vector2(48, -116)},
+	"manor": {"tex": "res://assets/buildings/manor.png", "w": 6, "h": 3, "smoke": Vector2(48, -118)},
 	"castle_keep": {"tex": "res://assets/buildings/castle_keep.png", "w": 5, "h": 4},
 	"round_tower": {"tex": "res://assets/buildings/round_tower.png", "w": 1, "h": 1, "small": true,
 			"light": Vector2(0, -60), "light_color": Color(1.0, 0.78, 0.5), "light_energy": 0.9},
@@ -60,6 +60,8 @@ func _ready() -> void:
 		])
 		add_child(poly)
 	add_child(spr)
+	if _cfg.has("smoke"):
+		add_child(_make_smoke(_cfg["smoke"]))
 	if _cfg.has("light"):
 		_light = PointLight2D.new()
 		_light.texture = load("res://assets/fx/light.png")
@@ -68,6 +70,24 @@ func _ready() -> void:
 		_light.texture_scale = 1.0
 		_light.energy = 0.0
 		add_child(_light)
+
+
+static func _make_smoke(at: Vector2) -> CPUParticles2D:
+	var p := CPUParticles2D.new()
+	p.position = at
+	p.amount = 10
+	p.lifetime = 3.0
+	p.preprocess = 2.0
+	p.direction = Vector2(0.25, -1.0)
+	p.spread = 14.0
+	p.initial_velocity_min = 9.0
+	p.initial_velocity_max = 16.0
+	p.gravity = Vector2(4, -6)
+	p.scale_amount_min = 1.6
+	p.scale_amount_max = 3.4
+	p.color = Color(0.62, 0.6, 0.64, 0.3)
+	p.z_index = 70
+	return p
 
 
 func _process(_delta: float) -> void:

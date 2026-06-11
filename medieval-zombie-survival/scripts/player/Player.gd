@@ -20,6 +20,8 @@ var hunger := 100.0
 var facing := "s"
 var dead := false
 var bleeding := false
+var infected := false
+var weapon_wear: Dictionary = {}  # item id -> accumulated wear (breaks at 100)
 
 var _attack_cd := 0.0
 var _special_cd := 0.0
@@ -177,6 +179,8 @@ func _update_survival(delta: float) -> void:
 		hp = minf(max_hp(), hp + 0.25 * delta)  # healing is slow; carry bandages
 	if bleeding:
 		_apply_damage(0.5 * delta, true)
+	if infected:
+		_apply_damage(0.15 * delta, true)  # wound-rot: slow doom without a remedy
 	if SkillTree.has_skill("second_wind") and hp < max_hp() * 0.3:
 		hp = minf(max_hp(), hp + 2.0 * delta)
 	mana = minf(max_mana(), mana + SkillTree.mana_regen() * delta)
@@ -236,6 +240,23 @@ func _dodge(input_dir: Vector2) -> void:
 	_sprite.scale = Vector2(1.1, 0.82) * SPRITE_SCALE
 	var tw := create_tween()
 	tw.tween_property(_sprite, "scale", SPRITE_SCALE, 0.25)
+
+
+## Weapons wear out with use and eventually break (carry a spare).
+func _wear_weapon(amount: float) -> void:
+	if equipped == "":
+		return
+	weapon_wear[equipped] = weapon_wear.get(equipped, 0.0) + amount
+	if weapon_wear[equipped] >= 100.0:
+		var broken := equipped
+		weapon_wear.erase(broken)
+		remove_item(broken, 1)
+		Game.play_sfx("hit", -2.0)
+		FX.float_text(get_parent(), position, "%s broke!" % ItemDB.display_name(broken), Color(1.0, 0.5, 0.3))
+
+
+func weapon_condition(id: String) -> int:
+	return clampi(100 - int(weapon_wear.get(id, 0.0)), 0, 100)
 
 
 func _roll_crit(dmg: float) -> Array:
@@ -304,6 +325,7 @@ func _melee_attack(w: Dictionary) -> void:
 		var to_z: Vector2 = z.position - position
 		if to_z.length() < 46.0 and absf(aim.angle_to(to_z.normalized())) < 1.35:
 			hit_zombies.append(z)
+	_wear_weapon(0.8)
 	if not hit_zombies.is_empty():
 		hit_zombies.sort_custom(func(a, b): return a.position.distance_squared_to(origin) < b.position.distance_squared_to(origin))
 		var count := hit_zombies.size() if SkillTree.has_skill("cleave") else 1
@@ -328,6 +350,7 @@ func _bow_attack(w: Dictionary) -> void:
 		_attack_cd = 0.4
 		return
 	remove_item("arrow", 1)
+	_wear_weapon(0.4)
 	_attack_cd = float(w["cooldown"]) * SkillTree.bow_cooldown_mult()
 	_play_attack_anim("bow")
 	Game.play_sfx("bow", -4.0)
@@ -349,6 +372,7 @@ func _staff_attack(w: Dictionary) -> void:
 		_attack_cd = 0.4
 		return
 	mana -= cost
+	_wear_weapon(0.3)
 	_attack_cd = float(w["cooldown"])
 	_play_attack_anim("staff")
 	Game.play_sfx("magic", -6.0)
@@ -389,6 +413,9 @@ func take_damage(amount: float, from_pos: Vector2, wound_chance := 0.0) -> void:
 	if not bleeding and randf() < wound_chance:
 		bleeding = true
 		FX.float_text(get_parent(), position, "wounded — bleeding!", Color(1.0, 0.35, 0.3))
+		if not infected and randf() < 0.25:
+			infected = true
+			Game.world.hud.announce("The wound festers... find or brew a Plague Remedy", Color(0.8, 0.5, 0.9))
 	_apply_damage(amount * SkillTree.damage_taken_mult(), false)
 	_sprite.modulate = Color(1, 0.4, 0.4)
 	var tw := create_tween()
@@ -469,6 +496,9 @@ func use_item(id: String) -> void:
 			hp = minf(max_hp(), hp + float(item.get("heal", 0)))
 			if item.get("cures", false):
 				bleeding = false
+			if item.get("cures_infection", false):
+				infected = false
+				FX.float_text(get_parent(), position, "the rot recedes", Color(0.7, 0.9, 0.7))
 			Game.play_sfx("eat")
 		"melee", "bow", "staff":
 			equipped = id

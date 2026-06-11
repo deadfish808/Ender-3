@@ -44,6 +44,10 @@ var occupied: Dictionary = {}   # Vector2i -> Node (structure / resource)
 var rng := RandomNumberGenerator.new()
 var _spawn_timer := 0.0
 var _groan_timer := 0.0
+var weather := "clear"  # "clear" | "rain"
+var _weather_timer := 50.0
+var _rain: CPUParticles2D
+var _rain_audio: AudioStreamPlayer
 
 
 const TOWN_CENTER := Vector2i(48, 48)
@@ -97,6 +101,7 @@ func _process(delta: float) -> void:
 		# replenish slowly, so clearing an area stays cleared for a while
 		_spawn_timer = 9.0 if _population_peaked() else 2.5
 		_try_spawn_zombie()
+	_update_weather(delta)
 	_groan_timer -= delta
 	if _groan_timer <= 0.0:
 		_groan_timer = rng.randf_range(6.0, 14.0)
@@ -651,6 +656,8 @@ func free_tile(tile: Vector2i) -> void:
 ## Broadcast a noise: zombies in range shamble over to investigate.
 func alert_zombies(pos: Vector2, radius: float) -> void:
 	var r := radius * Game.setting("zombie_senses")
+	if weather == "rain":
+		r *= 0.65  # the downpour masks sound — smart time to move or build
 	for z in get_tree().get_nodes_in_group("zombies"):
 		if z.position.distance_to(pos) < r:
 			z.hear_noise(pos)
@@ -667,6 +674,54 @@ func station_nearby(tag: String) -> bool:
 	return false
 
 
+# ------------------------------------------------------------- weather ------
+func _update_weather(delta: float) -> void:
+	_weather_timer -= delta
+	if _weather_timer <= 0.0:
+		if weather == "clear" and rng.randf() < 0.35:
+			_set_weather("rain")
+			_weather_timer = rng.randf_range(50.0, 110.0)
+		else:
+			_set_weather("clear")
+			_weather_timer = rng.randf_range(60.0, 140.0)
+	if _rain and Game.player and is_instance_valid(Game.player):
+		_rain.position = Game.player.position + Vector2(0, -360)
+
+
+func _set_weather(kind: String) -> void:
+	weather = kind
+	if _rain == null:
+		_rain = CPUParticles2D.new()
+		_rain.amount = 260
+		_rain.lifetime = 0.7
+		_rain.direction = Vector2(0.18, 1.0)
+		_rain.spread = 4.0
+		_rain.initial_velocity_min = 520.0
+		_rain.initial_velocity_max = 640.0
+		_rain.gravity = Vector2.ZERO
+		_rain.scale_amount_min = 1.0
+		_rain.scale_amount_max = 1.6
+		_rain.color = Color(0.62, 0.7, 0.85, 0.42)
+		_rain.emission_shape = CPUParticles2D.EMISSION_SHAPE_RECTANGLE
+		_rain.emission_rect_extents = Vector2(700, 30)
+		_rain.z_index = 80
+		_rain.emitting = false
+		add_child(_rain)
+		_rain_audio = AudioStreamPlayer.new()
+		var stream: AudioStreamWAV = load("res://assets/sfx/rain.wav")
+		stream.loop_mode = AudioStreamWAV.LOOP_FORWARD
+		stream.loop_end = stream.data.size() / 2
+		_rain_audio.stream = stream
+		_rain_audio.volume_db = -14.0
+		add_child(_rain_audio)
+	_rain.emitting = kind == "rain"
+	if kind == "rain":
+		_rain_audio.play()
+		hud.announce("Rain sweeps in — the downpour muffles your noise", Color(0.6, 0.72, 0.9))
+	else:
+		_rain_audio.stop()
+
+
 # ------------------------------------------------------------- ambient ------
 func _update_ambient() -> void:
 	var dark := Game.darkness()
@@ -676,6 +731,8 @@ func _update_ambient() -> void:
 	# muted dusk/dawn tint
 	var warm := clampf(1.0 - absf(dark - 0.4) / 0.4, 0.0, 1.0) * 0.3
 	c = c.lerp(Color(0.92, 0.7, 0.5), warm)
+	if weather == "rain":
+		c = c * Color(0.78, 0.82, 0.92)  # overcast grey-blue
 	canvas_mod.color = c
 
 

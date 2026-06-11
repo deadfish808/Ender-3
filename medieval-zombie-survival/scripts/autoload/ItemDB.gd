@@ -19,6 +19,7 @@ const ITEMS := {
 	"stew": {"name": "Mushroom Stew", "desc": "Hearty hot stew. Restores hunger and some health.", "type": "food", "food": 55, "heal": 12},
 	"salve": {"name": "Healing Salve", "desc": "Herbal salve. Restores 40 health and stops bleeding.", "type": "food", "food": 0, "heal": 40, "cures": true},
 	"bandage": {"name": "Bandage", "desc": "Stops bleeding and patches small wounds.", "type": "food", "food": 0, "heal": 6, "cures": true},
+	"remedy": {"name": "Plague Remedy", "desc": "A bitter draught that burns out wound-rot. The only cure for infection.", "type": "food", "food": 0, "heal": 10, "cures": true, "cures_infection": true},
 	# weapons
 	"wooden_sword": {"name": "Wooden Sword", "desc": "A practice blade. Better than fists.", "type": "melee", "dmg": 14, "cooldown": 0.55, "knockback": 90},
 	"iron_sword": {"name": "Iron Sword", "desc": "A proper soldier's blade.", "type": "melee", "dmg": 28, "cooldown": 0.5, "knockback": 110},
@@ -53,6 +54,7 @@ const RECIPES := [
 	{"out": "spike_trap", "count": 1, "cost": {"wood": 3, "flint": 2}, "station": ""},
 	{"out": "stew", "count": 1, "cost": {"mushroom": 2, "berries": 1}, "station": "campfire"},
 	{"out": "salve", "count": 1, "cost": {"berries": 3, "cloth": 1}, "station": "campfire"},
+	{"out": "remedy", "count": 1, "cost": {"essence": 2, "berries": 2, "cloth": 1}, "station": "campfire"},
 	{"out": "iron_sword", "count": 1, "cost": {"plank": 2, "iron_scrap": 3}, "station": "workbench"},
 	{"out": "longbow", "count": 1, "cost": {"plank": 4, "rope": 2}, "station": "workbench"},
 	{"out": "arcane_staff", "count": 1, "cost": {"plank": 2, "essence": 5}, "station": "workbench"},

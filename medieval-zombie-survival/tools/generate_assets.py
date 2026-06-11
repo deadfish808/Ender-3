@@ -1316,6 +1316,15 @@ def make_item_icons():
     px(im, 10, 4, IRON[1] + (255,))
     icons["workbench"] = im
 
+    im = icon_base()  # remedy (infection cure)
+    rect(im, 6, 7, 11, 15, (96, 62, 140, 255))
+    rect(im, 6, 7, 11, 8, (130, 92, 178, 255))
+    rect(im, 7, 12, 8, 13, (170, 130, 220, 255))
+    rect(im, 7, 4, 10, 6, (150, 130, 100, 255))
+    px(im, 8, 3, (190, 170, 130, 255))
+    px(im, 12, 9, (200, 170, 240, 200))
+    icons["remedy"] = im
+
     im = icon_base()  # bandage
     disc(im, 8, 10, 5.2, 5.2, (214, 206, 192, 255))
     disc(im, 8, 10, 2.0, 2.0, (162, 152, 138, 255))

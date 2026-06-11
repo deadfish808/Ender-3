@@ -46,10 +46,10 @@ var _investigate_time := 0.0
 func setup(p_type: String) -> void:
 	type = p_type
 	var cfg: Dictionary = TYPES[type]
-	speed = cfg["speed"] * randf_range(0.85, 1.15)
+	speed = cfg["speed"] * randf_range(0.85, 1.15) * Game.setting("zombie_speed")
 	hp = cfg["hp"]
 	max_hp = hp
-	dmg = cfg["dmg"]
+	dmg = cfg["dmg"] * Game.setting("zombie_damage")
 	structure_dmg = cfg["structure_dmg"]
 	xp_value = cfg["xp"]
 
@@ -131,7 +131,8 @@ func _physics_process(delta: float) -> void:
 		if position.distance_to(player.position) < 26.0 and _attack_cd <= 0.0:
 			_attack_cd = 1.1
 			_play_lunge((player.position - position).normalized())
-			player.take_damage(dmg, position, 0.35 if type == "brute" else 0.18)
+			player.take_damage(dmg, position,
+					(0.35 if type == "brute" else 0.18) * Game.setting("wound_chance"))
 		elif _bash_cd <= 0.0:
 			_bash_structures()
 
@@ -151,6 +152,7 @@ func _think_tick() -> void:
 		aggro_range = 170.0
 	if type == "runner":
 		aggro_range += 50.0
+	aggro_range *= Game.setting("zombie_senses")
 	if dist < aggro_range:
 		_aggro = true
 		_aggro_memory = 8.0
@@ -281,7 +283,7 @@ func _die() -> void:
 	Game.kills += 1
 	var night_bonus := 0.10 if Game.is_night() else 0.0
 	for drop in DROPS:
-		var chance: float = drop[1] + (night_bonus if drop[0] == "essence" else 0.0)
+		var chance: float = (drop[1] + (night_bonus if drop[0] == "essence" else 0.0)) * Game.setting("loot")
 		if randf() < chance:
 			Game.world.spawn_pickup(drop[0], 1, position + Vector2(randf_range(-10, 10), randf_range(-6, 6)))
 	queue_free()

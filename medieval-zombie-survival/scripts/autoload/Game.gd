@@ -8,9 +8,39 @@ signal xp_changed(xp: int, needed: int, level: int)
 signal level_gained(level: int)
 signal skill_points_changed(points: int)
 
-const DAY_LENGTH := 420.0  # real seconds per in-game day
 const NIGHT_START := 0.625  # 21:00 (time_of_day 0.0 == 06:00)
 const NIGHT_END := 0.958    # 05:00
+
+## Sandbox difficulty options (Project Zomboid style). Persisted to disk.
+const OPTION_DEFS := [
+	{"key": "zombie_population", "name": "Zombie Population",
+		"desc": "How many zombies the world sustains.",
+		"choices": [["Sparse", 0.5], ["Normal", 1.0], ["Heavy", 1.5], ["Horde", 2.0]]},
+	{"key": "zombie_speed", "name": "Zombie Speed",
+		"desc": "How fast the dead move.",
+		"choices": [["Shamblers", 0.8], ["Normal", 1.0], ["Feral", 1.25]]},
+	{"key": "zombie_damage", "name": "Zombie Strength",
+		"desc": "Damage dealt by zombie attacks.",
+		"choices": [["Weak", 0.6], ["Normal", 1.0], ["Deadly", 1.5]]},
+	{"key": "zombie_senses", "name": "Zombie Senses",
+		"desc": "Sight and hearing range of the dead.",
+		"choices": [["Dull", 0.7], ["Normal", 1.0], ["Keen", 1.4]]},
+	{"key": "wound_chance", "name": "Wounds & Bleeding",
+		"desc": "Chance that zombie hits open a bleeding wound.",
+		"choices": [["Rare", 0.5], ["Normal", 1.0], ["Brutal", 1.6]]},
+	{"key": "loot", "name": "Loot Abundance",
+		"desc": "Yield from props, chests, and zombie drops.",
+		"choices": [["Scarce", 0.6], ["Normal", 1.0], ["Plentiful", 1.5]]},
+	{"key": "xp_rate", "name": "XP Rate",
+		"desc": "How quickly you earn levels and skill points.",
+		"choices": [["Slow", 0.5], ["Normal", 1.0], ["Fast", 1.5]]},
+	{"key": "day_length", "name": "Day Length",
+		"desc": "Real time per in-game day.",
+		"choices": [["Short (5 min)", 300.0], ["Normal (7 min)", 420.0], ["Long (10 min)", 600.0]]},
+]
+const SETTINGS_PATH := "user://settings.cfg"
+
+var settings: Dictionary = {}
 
 var day := 1
 var time_of_day := 0.04  # ~07:00
@@ -35,6 +65,7 @@ const SFX_NAMES := [
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
+	_load_settings()
 	_setup_input()
 	for sfx_name in SFX_NAMES:
 		var path := "res://assets/sfx/%s.wav" % sfx_name
@@ -60,8 +91,33 @@ func reset_run() -> void:
 	SkillTree.reset()
 
 
+func setting(key: String) -> float:
+	return float(settings.get(key, 1.0))
+
+
+func set_setting(key: String, value: float) -> void:
+	settings[key] = value
+	_save_settings()
+
+
+func _load_settings() -> void:
+	for def in OPTION_DEFS:
+		settings[def["key"]] = def["choices"][1][1] if def["key"] != "day_length" else 420.0
+	var cfg := ConfigFile.new()
+	if cfg.load(SETTINGS_PATH) == OK:
+		for def in OPTION_DEFS:
+			settings[def["key"]] = cfg.get_value("sandbox", def["key"], settings[def["key"]])
+
+
+func _save_settings() -> void:
+	var cfg := ConfigFile.new()
+	for def in OPTION_DEFS:
+		cfg.set_value("sandbox", def["key"], settings[def["key"]])
+	cfg.save(SETTINGS_PATH)
+
+
 func advance_time(delta: float) -> void:
-	time_of_day += delta / DAY_LENGTH
+	time_of_day += delta / setting("day_length")
 	if time_of_day >= 1.0:
 		time_of_day -= 1.0
 		day += 1
@@ -103,7 +159,7 @@ func xp_needed() -> int:
 
 
 func add_xp(amount: int) -> void:
-	xp += amount
+	xp += maxi(1, roundi(amount * setting("xp_rate")))
 	while xp >= xp_needed():
 		xp -= xp_needed()
 		level += 1

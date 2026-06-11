@@ -7,6 +7,7 @@ var frame := 0
 
 
 func _ready() -> void:
+	process_mode = Node.PROCESS_MODE_ALWAYS  # keep counting while paused
 	dir = OS.get_environment("MZS_SHOT_DIR")
 
 
@@ -75,7 +76,12 @@ func _process(_delta: float) -> void:
 			player.position = world.tile_to_world(Vector2i(71, 24))
 		152:
 			_shot("08_city_overview")
-		156:
+		154:
+			hud.open_options()
+		162:
+			_shot("09_options")
+			hud.close_options()
+		166:
 			get_tree().quit()
 
 

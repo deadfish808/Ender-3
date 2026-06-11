@@ -11,7 +11,11 @@ const T_SAND := 5
 const T_WATER := 6
 const T_STONE := [9, 10]
 
-const ZOMBIE_CAP := 50
+# population model: grows daily to a peak, then regenerates slowly
+const POP_START := 10.0
+const POP_GROWTH_PER_DAY := 6.0
+const POP_PEAK := 60.0
+const POP_HARD_CAP := 90
 
 # terrain blending: higher priority materials bleed onto lower neighbors
 const MAT_PRIORITY := {"grass": 4, "stone": 3, "dirt": 2, "sand": 1, "water": 0}
@@ -89,7 +93,9 @@ func _process(delta: float) -> void:
 	_update_ambient()
 	_spawn_timer -= delta
 	if _spawn_timer <= 0.0:
-		_spawn_timer = 2.5
+		# before the world peaks the horde swells fast; afterwards the dead
+		# replenish slowly, so clearing an area stays cleared for a while
+		_spawn_timer = 9.0 if _population_peaked() else 2.5
 		_try_spawn_zombie()
 	_groan_timer -= delta
 	if _groan_timer <= 0.0:
@@ -551,33 +557,59 @@ func _apply_blending() -> void:
 
 
 # ------------------------------------------------------------- zombies ------
+func _base_population() -> float:
+	return minf(POP_START + (Game.day - 1) * POP_GROWTH_PER_DAY, POP_PEAK)
+
+
+func _population_peaked() -> bool:
+	return POP_START + (Game.day - 1) * POP_GROWTH_PER_DAY >= POP_PEAK
+
+
+func _target_population() -> int:
+	var base := _base_population()
+	if Game.is_night():
+		base *= 1.4
+	return mini(int(base * Game.setting("zombie_population")), POP_HARD_CAP)
+
+
 func _try_spawn_zombie() -> void:
 	if Game.player == null or not is_instance_valid(Game.player):
 		return
 	var count := get_tree().get_nodes_in_group("zombies").size()
-	var desired: int
-	if Game.is_night():
-		desired = mini(10 + (Game.day - 1) * 4, ZOMBIE_CAP)
-	else:
-		desired = mini(4 + (Game.day - 1) * 2, ZOMBIE_CAP)
-	if count >= desired:
+	if count >= _target_population():
 		return
-	for attempt in 12:
-		var ang := rng.randf() * TAU
-		var dist := rng.randf_range(650.0, 950.0)
-		var pos: Vector2 = Game.player.position + Vector2(cos(ang), sin(ang) * 0.5) * dist
-		var tile := world_to_tile(pos)
-		if walkable.get(tile, false) and not occupied.has(tile):
-			var z := preload("res://scripts/enemies/Zombie.gd").new()
-			z.setup(_pick_zombie_type())
-			z.position = tile_to_world(tile)
-			entities.add_child(z)
-			return
+	# density zones: the dead crowd the city, linger around town, and
+	# only stragglers roam the wilderness
+	var zone := rng.randf()
+	var in_city := false
+	for attempt in 14:
+		var tile: Vector2i
+		if zone < 0.5:
+			in_city = true
+			tile = Vector2i(rng.randi_range(CITY_MIN.x + 1, CITY_MAX.x - 1),
+					rng.randi_range(CITY_MIN.y + 1, CITY_MAX.y - 1))
+		elif zone < 0.75:
+			tile = Vector2i(rng.randi_range(TOWN_RECT_MIN.x - 6, TOWN_RECT_MAX.x + 6),
+					rng.randi_range(TOWN_RECT_MIN.y - 6, TOWN_RECT_MAX.y + 6))
+		else:
+			tile = Vector2i(rng.randi_range(4, MAP_SIZE - 5), rng.randi_range(4, MAP_SIZE - 5))
+		if not walkable.get(tile, false) or occupied.has(tile):
+			continue
+		var pos := tile_to_world(tile)
+		if pos.distance_to(Game.player.position) < 280.0:
+			continue  # never pop in right next to the player
+		var z := preload("res://scripts/enemies/Zombie.gd").new()
+		z.setup(_pick_zombie_type(in_city))
+		z.position = pos
+		entities.add_child(z)
+		return
 
 
-func _pick_zombie_type() -> String:
+func _pick_zombie_type(in_city := false) -> String:
 	var roll := rng.randf()
 	var brute_chance := minf(0.05 + Game.day * 0.03, 0.3)
+	if in_city:
+		brute_chance += 0.06
 	var runner_chance := 0.25 if Game.is_night() else 0.08
 	if roll < brute_chance:
 		return "brute"
@@ -618,8 +650,9 @@ func free_tile(tile: Vector2i) -> void:
 
 ## Broadcast a noise: zombies in range shamble over to investigate.
 func alert_zombies(pos: Vector2, radius: float) -> void:
+	var r := radius * Game.setting("zombie_senses")
 	for z in get_tree().get_nodes_in_group("zombies"):
-		if z.position.distance_to(pos) < radius:
+		if z.position.distance_to(pos) < r:
 			z.hear_noise(pos)
 
 

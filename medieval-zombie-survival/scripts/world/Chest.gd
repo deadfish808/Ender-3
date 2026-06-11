@@ -33,7 +33,7 @@ func interact(_player: Node) -> void:
 	_sprite.texture = load("res://assets/props/chest_open.png")
 	Game.play_sfx("craft")
 	Game.add_xp(8)
-	var drops := randi_range(2, 3)
+	var drops := maxi(1, roundi(randi_range(2, 3) * Game.setting("loot")))
 	for i in drops:
 		var entry: Array = LOOT[randi() % LOOT.size()]
 		var count := randi_range(int(entry[1]), int(entry[2]))

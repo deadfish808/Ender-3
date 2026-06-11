@@ -18,6 +18,7 @@ var inventory_panel: Control
 var crafting_panel: Control
 var build_panel: Control
 var skills_panel: Control
+var options_panel: Control
 var _root: Control
 var _game_over: Control
 
@@ -47,7 +48,8 @@ func _ready() -> void:
 	crafting_panel = preload("res://scripts/ui/CraftingUI.gd").new()
 	build_panel = preload("res://scripts/ui/BuildMenuUI.gd").new()
 	skills_panel = preload("res://scripts/ui/SkillTreeUI.gd").new()
-	for p in [inventory_panel, crafting_panel, build_panel, skills_panel]:
+	options_panel = preload("res://scripts/ui/OptionsUI.gd").new()
+	for p in [inventory_panel, crafting_panel, build_panel, skills_panel, options_panel]:
 		p.visible = false
 		p.set_anchors_preset(Control.PRESET_CENTER)
 		p.grow_horizontal = Control.GROW_DIRECTION_BOTH
@@ -123,7 +125,7 @@ func _build_xp() -> void:
 
 func _build_hints() -> void:
 	var hints := UIKit.label(
-		"[WASD] move   [Shift] sprint   [Space] dodge   [LMB] attack/harvest   [RMB] frost nova   [E] interact   [1/2/3] weapons   [Tab] inventory   [C] craft   [B] build   [K] skills   [Wheel] zoom",
+		"[WASD] move   [Shift] sprint   [Space] dodge   [LMB] attack/harvest   [RMB] frost nova   [E] interact   [1/2/3] weapons   [Tab] inventory   [C] craft   [B] build   [K] skills   [Wheel] zoom   [Esc] options",
 		11, UIKit.TEXT_DIM)
 	hints.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
 	hints.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -202,7 +204,13 @@ func _unhandled_input(event: InputEvent) -> void:
 	elif event.is_action_pressed("toggle_skills"):
 		_toggle(skills_panel)
 	elif event.is_action_pressed("ui_cancel"):
-		close_all_panels()
+		if options_panel.visible:
+			close_options()
+		elif ui_blocking():
+			close_all_panels()
+		else:
+			open_options()
+		get_viewport().set_input_as_handled()
 
 
 func _toggle(panel: Control) -> void:
@@ -217,10 +225,24 @@ func _toggle(panel: Control) -> void:
 func close_all_panels() -> void:
 	for p in [inventory_panel, crafting_panel, build_panel, skills_panel]:
 		p.visible = false
+	if options_panel.visible:
+		close_options()
+
+
+func open_options() -> void:
+	options_panel.visible = true
+	options_panel.refresh()
+	get_tree().paused = true
+
+
+func close_options() -> void:
+	options_panel.visible = false
+	if _game_over == null:
+		get_tree().paused = false
 
 
 func ui_blocking() -> bool:
-	for p in [inventory_panel, crafting_panel, build_panel, skills_panel]:
+	for p in [inventory_panel, crafting_panel, build_panel, skills_panel, options_panel]:
 		if p.visible:
 			return true
 	return _game_over != null

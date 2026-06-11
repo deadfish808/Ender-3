@@ -39,7 +39,7 @@ horde grows larger and more aggressive every day.
 | `B` | Build menu |
 | `K` | Skill trees |
 | Mouse wheel | Zoom in / out |
-| `Esc` | Close panels / cancel build mode |
+| `Esc` | Options menu (pauses) / close panels / cancel build mode |
 
 ### Survival loop
 
@@ -75,7 +75,20 @@ horde grows larger and more aggressive every day.
 | Runner | Fast and twitchy; mostly prowls at night |
 | Brute | Slow, huge health pool, demolishes structures |
 
-At night zombie aggro range doubles and spawn counts scale with the day number.
+### Population
+
+The horde follows a Project Zomboid-style population model: the world's zombie
+count grows every day until it peaks (around day 9 on Normal), after which the
+dead **regenerate slowly** — clearing a district keeps it clear for a while.
+Zombies are densest inside the walled city, common around the town, and sparse
+in the wilderness. At night the population swells, senses sharpen, and runners
+come out.
+
+### Sandbox options (`Esc`)
+
+Every difficulty knob is adjustable in-game and saved between sessions:
+zombie population / speed / strength / senses, wound & bleeding chance, loot
+abundance, XP rate, and day length.
 
 ### Skill trees
 

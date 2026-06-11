@@ -84,7 +84,7 @@ func hit(_dmg: float) -> void:
 	Game.add_xp(1)
 	# drop one yield roll per hit
 	for y in _cfg["yield"]:
-		if randf() <= float(y[1]):
+		if randf() <= float(y[1]) * Game.setting("loot"):
 			var offset := Vector2(randf_range(-14, 14), randf_range(8, 18))
 			Game.world.spawn_pickup(y[0], 1, position + offset)
 	_shake()

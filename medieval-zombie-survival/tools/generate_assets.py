@@ -22,7 +22,7 @@ OUTLINE = (24, 18, 28, 255)
 GRASS = [(42, 53, 35), (52, 65, 42), (63, 78, 49), (76, 92, 57)]
 DIRT = [(60, 47, 36), (76, 60, 45), (92, 74, 55), (108, 88, 66)]
 SAND = [(118, 104, 78), (136, 121, 92), (152, 137, 106), (168, 152, 120)]
-WATER = [(22, 34, 48), (28, 43, 60), (35, 53, 73), (58, 80, 100)]
+WATER = [(27, 41, 56), (34, 51, 69), (43, 64, 84), (68, 92, 112)]
 STONE = [(56, 56, 62), (74, 74, 81), (94, 94, 102), (116, 116, 124)]
 WOOD = [(60, 46, 33), (78, 60, 43), (96, 76, 54), (116, 94, 67)]
 LEAF = [(26, 40, 28), (35, 52, 35), (45, 65, 43), (57, 80, 52)]
@@ -166,6 +166,40 @@ def terrain_tile(ramp, seed, tufts=0, tuft_color=None, waves=False, wave_seed=No
     return im
 
 
+def cobble_tile(seed):
+    """Rounded cobblestones with dark grout, clipped to the iso diamond."""
+    im = new(TILE_W, TILE_H)
+    rng = random.Random(seed)
+    grout = shade(STONE[0] + (255,), 0.62)
+    for y in range(TILE_H):
+        for x in range(TILE_W):
+            if in_diamond(x, y):
+                px(im, x, y, grout)
+    for row, y in enumerate(range(2, TILE_H - 1, 5)):
+        off = (row % 2) * 4 + rng.randint(-1, 1)
+        for x in range(3 + off, TILE_W - 2, 8):
+            jx = x + rng.randint(-1, 1)
+            jy = y + rng.randint(-1, 1)
+            tone = rng.choice([STONE[1], STONE[1], STONE[2], STONE[2], STONE[3]])
+            if rng.random() < 0.12:
+                tone = shade(STONE[1], 0.85)[:3]
+            disc(im, jx, jy, rng.uniform(3.2, 4.4), rng.uniform(1.9, 2.5), tone + (255,))
+            px(im, jx - 1, jy - 1, shade(tone + (255,), 1.18))
+            px(im, jx, jy - 1, shade(tone + (255,), 1.1))
+            px(im, jx + 1, jy + 1, shade(tone + (255,), 0.8))
+    # clip to diamond + edge shading
+    for y in range(TILE_H):
+        for x in range(TILE_W):
+            if not in_diamond(x, y):
+                px(im, x, y, (0, 0, 0, 0))
+            else:
+                edge = abs((x + 0.5) / TILE_W * 2 - 1) + abs((y + 0.5) / TILE_H * 2 - 1)
+                if edge > 0.88:
+                    cur = im.getpixel((x, y))
+                    px(im, x, y, shade(cur, 0.82 if y > TILE_H / 2 else 1.08))
+    return im
+
+
 def build_terrain_atlas():
     # atlas layout (col,row): see World.gd TILES mapping.
     # Water occupies indices 6,7,8 (horizontally adjacent -> tileset animation).
@@ -179,8 +213,8 @@ def build_terrain_atlas():
         terrain_tile(WATER, 7, waves=True, wave_seed=70),
         terrain_tile(WATER, 7, waves=True, wave_seed=71),
         terrain_tile(WATER, 7, waves=True, wave_seed=72),
-        terrain_tile(STONE, 9),
-        terrain_tile(STONE, 10),
+        cobble_tile(9),
+        cobble_tile(10),
     ]
     cols = 5
     rows = (len(cells) + cols - 1) // cols
@@ -298,18 +332,106 @@ def mushroom_patch(seed=9):
 def ruin_wall(seed):
     im = new(64, 64)
     rng = random.Random(seed)
-    draw_iso_block(im, height=int(18 + rng.random() * 14), ramp=STONE, pattern="stone",
-                   jagged=True, rng=rng, moss=True)
+    draw_iso_block(im, height=int(18 + rng.random() * 14), style="stone",
+                   jagged=True, rng=rng)
     return outline(im)
 
 
 # ------------------------------------------------------------- iso blocks ---
-def draw_iso_block(im, height, ramp, pattern, jagged=False, rng=None, moss=False,
+SLATE = [(38, 40, 48), (52, 55, 64), (68, 72, 82), (88, 93, 104)]
+PLASTER = [(118, 108, 92), (142, 132, 114), (164, 154, 134), (182, 172, 152)]
+TIMBER = [(34, 27, 21), (48, 38, 29), (64, 52, 40)]
+
+
+def _stone_face(x, yy, col_h, left):
+    """Irregular coursed masonry with mortar joints, bevels and moss."""
+    course_h = 7
+    row = yy // course_h
+    off = (row * 5 + int(value_noise(row, 0, 3.0) * 4)) % 11
+    bx = (x + off) % 11
+    by = yy % course_h
+    base = STONE[2] if left else STONE[1]
+    if by == 0 or bx == 0:
+        return shade(base + (255,), 0.45)  # mortar
+    block_id = (x + off) // 11 + row * 13
+    n = value_noise(block_id * 3.1, row * 2.7, 3.0)
+    c = base + (255,)
+    if n > 0.7:
+        c = (STONE[3] if left else STONE[2]) + (255,)
+    elif n < 0.32:
+        c = shade(c, 0.84)
+    # bevel: light top-left, dark bottom-right
+    if by == 1 or bx == 1:
+        c = shade(c, 1.14)
+    elif by >= course_h - 2 or bx >= 9:
+        c = shade(c, 0.82)
+    # moss creeping up from the base
+    if yy > col_h * 0.62:
+        m = value_noise(x * 1.7, yy * 1.4, 13.0) + (yy - col_h * 0.62) / max(col_h * 0.38, 1) * 0.25
+        if m > 0.86:
+            c = LEAF[2] + (255,)
+        elif m > 0.78:
+            c = LEAF[1] + (255,)
+    return c
+
+
+def _timber_face(x, yy, col_h, left, face_x0, face_x1):
+    """Half-timbered: plaster panels framed by dark beams with diagonal brace."""
+    base = PLASTER[2] if left else PLASTER[1]
+    c = base + (255,)
+    n = value_noise(x * 1.8, yy * 1.6, 5.0)
+    if n > 0.74:
+        c = (PLASTER[3] if left else PLASTER[2]) + (255,)
+    elif n < 0.3:
+        c = shade(c, 0.88)
+    # weather staining near the base
+    if yy > col_h * 0.7 and value_noise(x * 2.3, yy, 9.0) > 0.55:
+        c = shade(c, 0.8)
+    beam = False
+    if yy <= 2 or yy >= col_h - 3:
+        beam = True  # top plate / sill
+    for post in (face_x0, face_x1 - 2, 31):
+        if post <= x <= post + 2:
+            beam = True  # corner and edge posts
+    # diagonal brace across the panel
+    span = max(face_x1 - face_x0 - 6, 1)
+    t = (x - face_x0 - 3) / span
+    if 0.0 <= t <= 1.0:
+        brace_y = (0.82 - 0.6 * t) * col_h if left else (0.22 + 0.6 * t) * col_h
+        if abs(yy - brace_y) < 1.6:
+            beam = True
+    if beam:
+        bc = TIMBER[1]
+        if value_noise(x * 3.0, yy * 2.0, 7.0) > 0.7:
+            bc = TIMBER[2]
+        elif (x + yy) % 7 == 0:
+            bc = TIMBER[0]
+        return bc + (255,)
+    return c
+
+
+def _cap_color(x, y, material):
+    """Shingled cap texture for the top diamond (slate or wood)."""
+    ramp = SLATE if material == "slate" else WOOD
+    row = y // 4
+    off = (row % 2) * 4
+    n = value_noise((x + off) * 0.9, row * 3.3, 21.0)
+    c = ramp[2] if n > 0.45 else ramp[1]
+    if n > 0.8:
+        c = ramp[3]
+    if y % 4 == 0 or ((x + off) % 8) == 0:
+        c = ramp[0]
+    return c + (255,)
+
+
+def draw_iso_block(im, height, style, jagged=False, rng=None,
                    door_hole=False, door_open=False):
-    """Draw an isometric block with a 64x32 diamond footprint, faces extruded
-    upward by `height`. Image must be 64x64; footprint occupies bottom 32 rows."""
+    """Isometric block, 64x32 diamond footprint, faces extruded by `height`.
+    style: "stone" (masonry + slate cap) or "timber" (half-timber + shingles).
+    """
     rng = rng or random.Random(1)
-    base_top = im.height - TILE_H  # y of footprint diamond top
+    base_top = im.height - TILE_H
+    cy = base_top + TILE_H / 2
     jag = [0] * 64
     if jagged:
         v = 0
@@ -318,99 +440,102 @@ def draw_iso_block(im, height, ramp, pattern, jagged=False, rng=None, moss=False
                 v = rng.randint(0, 10)
             jag[x] = v
 
-    def face_color(x, y, left):
-        base = ramp[2] if left else ramp[1]
-        if pattern == "stone":
-            # coursed blocks
-            row = (y // 6)
-            off = (row % 2) * 5
-            if (y % 6) == 0 or ((x + off) % 11) == 0:
-                return shade(base + (255,), 0.62)
-            n = value_noise(x, y, 3.0)
-            c = base + (255,)
-            if n > 0.72:
-                c = ramp[3] + (255,)
-            elif n < 0.3:
-                c = shade(c, 0.85)
-            return c
-        else:  # wood planks
-            if (y % 5) == 0:
-                return shade(base + (255,), 0.6)
-            n = value_noise(x * 2.0, y, 7.0)
-            c = base + (255,)
-            if n > 0.75:
-                c = ramp[3] + (255,)
-            elif n < 0.28:
-                c = ramp[0] + (255,)
-            return c
-
-    # vertical faces: for each column x of the footprint diamond, the face
-    # spans from (top edge of diamond at x) - height .. (bottom edge at x)
+    # vertical faces: extrude each diamond column upward
     for x in range(64):
-        nx = (x + 0.5) / 64 * 2 - 1  # -1..1
-        half = (1 - abs(nx)) * (TILE_H / 2)  # vertical half-extent of diamond
-        cy = base_top + TILE_H / 2
+        nx = (x + 0.5) / 64 * 2 - 1
+        half = (1 - abs(nx)) * (TILE_H / 2)
         y_bot = cy + half
         h = max(0, height - jag[x])
-        y_top = cy - half if x in (0, 63) else cy + half - 0.001  # placeholder
-        # front faces are the *lower* edges of the diamond
-        y_face_top = cy + half - h - half * 2  # top of face follows upper edge - height
-        # Simpler: extrude the whole diamond column upward
         y0 = cy - half - h
+        col_h = int(y_bot - y0)
+        left = x < 32
+        face_x0, face_x1 = (1, 31) if left else (33, 63)
         for y in range(int(math.ceil(y0)), int(y_bot) + 1):
-            if y < int(math.ceil(y0)) + int(half * 2):
-                pass
-            left = x < 32
             yy = y - int(y0)
-            c = face_color(x, yy, left)
+            if style == "stone":
+                c = _stone_face(x, yy, col_h, left)
+            else:
+                c = _timber_face(x, yy, col_h, left, face_x0, face_x1)
             px(im, x, y, c)
-    # top face: diamond at elevation `height`
+    # shingled cap on top
+    cap = "slate" if style == "stone" else "wood"
     for y in range(TILE_H):
         for x in range(64):
             if in_diamond(x, y):
                 h = height - jag[x]
-                n = value_noise(x, y, 11.0)
-                c = ramp[3] if n > 0.6 else ramp[2]
-                if pattern == "wood" and ((x + y * 2) % 9) == 0:
-                    c = ramp[1]
-                if moss and rng.random() < 0.12:
-                    c = LEAF[2]
-                px(im, x, base_top + y - h, c + (255,))
+                c = _cap_color(x, y, cap)
+                if jagged and value_noise(x, y, 31.0) > 0.72:
+                    c = (STONE[1] if style == "stone" else WOOD[1]) + (255,)
+                px(im, x, base_top + y - h, c)
+    # eave shadow under the cap + rim light along the cap edge
+    cap_ramp = SLATE if cap == "slate" else WOOD
+    for x in range(64):
+        nx = (x + 0.5) / 64 * 2 - 1
+        half = (1 - abs(nx)) * (TILE_H / 2)
+        h = max(0, height - jag[x])
+        y_eave = int(cy + half - h)
+        px(im, x, y_eave + 1, (34, 30, 34, 255))
+        if not jagged:
+            px(im, x, int(cy - half - h), shade(cap_ramp[3] + (255,), 1.1))
     # shade lower edges of footprint
+    base_ramp = STONE if style == "stone" else TIMBER
     for y in range(TILE_H):
         for x in range(64):
             if in_diamond(x, y) and not in_diamond(x, y + 1):
-                px(im, x, base_top + y, shade(ramp[0] + (255,), 0.8))
+                px(im, x, base_top + y, shade(base_ramp[0] + (255,), 0.8))
     if door_hole:
-        # dark archway opening on the front (south) corner
-        cx = 32
-        for y in range(im.height - 26, im.height - 6):
-            wdt = 7 if y > im.height - 22 else 5
-            for x in range(cx - wdt, cx + wdt + 1):
-                if door_open:
-                    px(im, x, y, (0, 0, 0, 0))
-                else:
-                    c = WOOD[1] if (x % 4) else WOOD[0]
-                    px(im, x, y, c + (255,))
-        if not door_open:
-            px(im, cx + 4, im.height - 16, (220, 190, 90, 255))  # handle
+        _draw_door_opening(im, cy, door_open)
+
+
+def _draw_door_opening(im, cy, door_open):
+    """Arched plank door (or open hole) on the south corner, with an awning."""
+    cx = 32
+    for x in range(cx - 8, cx + 9):
+        nx = (x + 0.5) / 64 * 2 - 1
+        half = (1 - abs(nx)) * (TILE_H / 2)
+        y_bot = int(cy + half)
+        dx = abs(x - cx)
+        arch = 19 - max(0, dx - 5) * 3 - (dx * dx) // 14
+        for i in range(arch):
+            y = y_bot - i
+            if door_open:
+                px(im, x, y, (0, 0, 0, 0))
+                if i == arch - 1 or dx == 8:
+                    px(im, x, y, TIMBER[0] + (255,))  # inner frame
+            else:
+                c = WOOD[1] if (x % 3) else WOOD[0]
+                if i == arch - 1:
+                    c = TIMBER[0]
+                px(im, x, y, c + (255,))
+    if not door_open:
+        px(im, cx + 5, im.height - 12, (196, 168, 76, 255))  # handle
+        for hy in (im.height - 9, im.height - 17):  # hinges
+            px(im, cx - 7, hy, IRON[1] + (255,))
+            px(im, cx - 6, hy, IRON[2] + (255,))
+    # slate awning above the door
+    for x in range(cx - 10, cx + 11):
+        ay = im.height - 25 + abs(x - cx) // 4
+        for t in range(2):
+            px(im, x, ay + t, SLATE[2 if t == 0 else 1] + (255,))
+        px(im, x, ay - 1, SLATE[3] + (255,))
+        px(im, x, ay + 2, (30, 26, 30, 200))  # shadow under awning
 
 
 def wooden_wall():
     im = new(64, 64)
-    draw_iso_block(im, 26, WOOD, "wood")
+    draw_iso_block(im, 28, "timber")
     return outline(im)
 
 
 def stone_wall():
     im = new(64, 64)
-    draw_iso_block(im, 30, STONE, "stone")
+    draw_iso_block(im, 30, "stone")
     return outline(im)
 
 
 def door(open_state):
     im = new(64, 64)
-    draw_iso_block(im, 28, WOOD, "wood", door_hole=True, door_open=open_state)
+    draw_iso_block(im, 28, "timber", door_hole=True, door_open=open_state)
     return outline(im)
 
 
@@ -490,7 +615,7 @@ def campfire_sheet():
 
 def workbench():
     im = new(64, 52)
-    # table top diamond
+    # heavy table top (3px thick edge)
     for y in range(20):
         for x in range(56):
             if in_diamond(x, y, 56, 20):
@@ -499,44 +624,64 @@ def workbench():
                 if ((x + y * 2) % 7) == 0:
                     c = WOOD[1]
                 px(im, x + 4, y + 8, c + (255,))
-    # top edge
-    for y in range(20):
-        for x in range(56):
-            if in_diamond(x, y, 56, 20) and not in_diamond(x, y + 1, 56, 20):
-                px(im, x + 4, y + 9, WOOD[0] + (255,))
-                px(im, x + 4, y + 10, WOOD[1] + (255,))
-    # legs
+    for t in range(3):
+        for y in range(20):
+            for x in range(56):
+                if in_diamond(x, y, 56, 20) and not in_diamond(x, y + 1, 56, 20):
+                    px(im, x + 4, y + 9 + t, (WOOD[1] if t < 2 else WOOD[0]) + (255,))
+    # legs with cross brace
     for lx, ly in [(10, 18), (54, 18), (32, 26)]:
-        rect(im, lx - 1, ly + 8, lx + 1, ly + 24, WOOD[1] + (255,))
-        rect(im, lx + 1, ly + 8, lx + 1, ly + 24, WOOD[0] + (255,))
-    # tools on top
-    line(im, 22, 12, 30, 16, IRON[2] + (255,))  # saw
-    rect(im, 38, 12, 41, 14, IRON[1] + (255,))  # hammer head
-    line(im, 39, 15, 39, 19, WOOD[3] + (255,))
+        rect(im, lx - 1, ly + 8, lx + 1, ly + 24, TIMBER[1] + (255,))
+        rect(im, lx + 1, ly + 8, lx + 1, ly + 24, TIMBER[0] + (255,))
+        rect(im, lx - 1, ly + 8, lx - 1, ly + 24, TIMBER[2] + (255,))
+    line(im, 11, 36, 31, 44, TIMBER[1] + (255,), w=2)
+    line(im, 53, 36, 33, 44, TIMBER[1] + (255,), w=2)
+    # tools: hammer, tongs, horseshoe
+    rect(im, 38, 11, 42, 13, IRON[1] + (255,))
+    px(im, 38, 11, IRON[2] + (255,))
+    line(im, 40, 14, 40, 19, WOOD[3] + (255,))
+    line(im, 20, 13, 27, 16, IRON[1] + (255,))
+    line(im, 20, 15, 27, 16, IRON[0] + (255,))
+    for a in range(8):
+        ang = math.pi * (0.15 + 0.7 * a / 7)
+        px(im, 48 + math.cos(ang) * 3, 16 - math.sin(ang) * 2.4, IRON[2] + (255,))
+    # ember bowl with warm glow
+    disc(im, 14, 16, 2.6, 1.6, (52, 44, 40, 255))
+    px(im, 13, 15, (214, 120, 44, 255))
+    px(im, 14, 15, (240, 168, 70, 255))
+    px(im, 15, 16, (188, 92, 38, 255))
+    px(im, 14, 14, (255, 208, 120, 200))
     return outline(im)
 
 
 def chest(open_state=False):
     im = new(36, 32)
-    # iso box
-    draw = [(4, 14, 31, 28)]
     rect(im, 5, 16, 30, 28, WOOD[1] + (255,))
     rect(im, 5, 16, 30, 17, WOOD[2] + (255,))
     for x in range(5, 31, 6):
         line(im, x, 16, x, 28, WOOD[0] + (255,))
-    # lid
     if open_state:
         rect(im, 4, 6, 31, 10, WOOD[2] + (255,))
-        rect(im, 6, 12, 29, 15, (30, 24, 20, 255))  # dark interior
-        px(im, 14, 13, (240, 210, 110, 255))
-        px(im, 20, 14, (240, 210, 110, 255))
+        rect(im, 4, 6, 31, 7, WOOD[3] + (255,))
+        rect(im, 6, 12, 29, 15, (26, 20, 18, 255))  # dark interior
+        px(im, 14, 13, (224, 196, 104, 255))
+        px(im, 20, 14, (224, 196, 104, 255))
+        px(im, 17, 13, (200, 172, 90, 255))
     else:
         rect(im, 4, 11, 31, 15, WOOD[2] + (255,))
         rect(im, 4, 11, 31, 12, WOOD[3] + (255,))
-    # gold band + lock
-    rect(im, 16, 11 if not open_state else 16, 19, 28, (170, 140, 60, 255))
-    rect(im, 16, 18, 19, 21, (220, 190, 90, 255))
-    return outline(im)
+    # iron corner brackets + central band
+    band_top = 11 if not open_state else 16
+    rect(im, 16, band_top, 19, 28, IRON[0] + (255,))
+    rect(im, 17, band_top, 18, 28, IRON[1] + (255,))
+    rect(im, 16, 18, 19, 21, IRON[2] + (255,))  # lock plate
+    px(im, 17, 19, (40, 34, 30, 255))           # keyhole
+    for bx in (5, 29):
+        rect(im, bx - 1, 26, bx + 1, 28, IRON[0] + (255,))
+        rect(im, bx - 1, band_top, bx + 1, band_top + 2, IRON[0] + (255,))
+        px(im, bx, 27, IRON[2] + (255,))
+        px(im, bx, band_top + 1, IRON[2] + (255,))
+    return with_shadow(outline(im), 18, 28, 12, 3)
 
 
 # -------------------------------------------------------------- characters --

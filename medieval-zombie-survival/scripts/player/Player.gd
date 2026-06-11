@@ -35,6 +35,7 @@ var _combo_timer := 0.0
 var _sprite: AnimatedSprite2D
 var _light: PointLight2D
 var _cam: Camera2D
+var _target_zoom := 2.4
 
 
 func _ready() -> void:
@@ -49,7 +50,7 @@ func _ready() -> void:
 	add_child(shape)
 	_build_sprite()
 	_cam = Camera2D.new()
-	_cam.zoom = Vector2(2.0, 2.0)
+	_cam.zoom = Vector2(2.4, 2.4)
 	_cam.position_smoothing_enabled = true
 	_cam.position_smoothing_speed = 8.0
 	add_child(_cam)
@@ -406,6 +407,13 @@ func _apply_damage(amount: float, _quiet: bool) -> void:
 func _unhandled_input(event: InputEvent) -> void:
 	if dead:
 		return
+	if event is InputEventMouseButton and event.pressed:
+		if event.button_index == MOUSE_BUTTON_WHEEL_UP:
+			_set_zoom(_target_zoom * 1.13)
+			return
+		if event.button_index == MOUSE_BUTTON_WHEEL_DOWN:
+			_set_zoom(_target_zoom / 1.13)
+			return
 	if event.is_action_pressed("special"):
 		if not _ui_blocked():
 			_frost_nova()
@@ -499,6 +507,12 @@ func max_hp() -> float:
 
 func max_mana() -> float:
 	return 50.0 + SkillTree.bonus_mana()
+
+
+func _set_zoom(value: float) -> void:
+	_target_zoom = clampf(value, 1.1, 3.6)
+	var tw := create_tween()
+	tw.tween_property(_cam, "zoom", Vector2.ONE * _target_zoom, 0.18).set_trans(Tween.TRANS_SINE)
 
 
 func shake_camera(amount := 3.0) -> void:

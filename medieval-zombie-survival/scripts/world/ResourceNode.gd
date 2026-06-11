@@ -30,6 +30,16 @@ const CONFIG := {
 			"yield": [["berries", 0.7], ["cloth", 0.4], ["rope", 0.25]], "radius": 10.0, "blocks": true},
 	"stall_yellow": {"texture": "res://assets/props/stall_yellow.png", "hits": 3, "offset": -21.0,
 			"yield": [["mushroom", 0.6], ["fiber", 0.5], ["rope", 0.25]], "radius": 10.0, "blocks": true},
+	"fence": {"texture": "res://assets/props/fence.png", "hits": 3, "offset": -14.0,
+			"yield": [["wood", 0.9]], "radius": 9.0, "blocks": true},
+	"fence_f": {"texture": "res://assets/props/fence.png", "hits": 3, "offset": -14.0,
+			"yield": [["wood", 0.9]], "radius": 9.0, "blocks": true, "flip": true},
+	"cart": {"texture": "res://assets/props/cart.png", "hits": 4, "offset": -19.0,
+			"yield": [["wood", 0.8], ["rope", 0.3], ["fiber", 0.5]], "radius": 11.0, "blocks": true},
+	"woodpile": {"texture": "res://assets/props/woodpile.png", "hits": 3, "offset": -12.0,
+			"yield": [["wood", 1.0], ["wood", 0.6]], "radius": 9.0, "blocks": true},
+	"sacks": {"texture": "res://assets/props/sacks.png", "hits": 2, "offset": -10.0,
+			"yield": [["berries", 0.6], ["mushroom", 0.4], ["fiber", 0.4]], "radius": 7.0, "blocks": true},
 }
 
 var kind := ""
@@ -54,6 +64,7 @@ func _ready() -> void:
 	_sprite = Sprite2D.new()
 	_sprite.texture = load(_cfg["texture"])
 	_sprite.offset = Vector2(0, _cfg["offset"])
+	_sprite.flip_h = _cfg.get("flip", false)
 	add_child(_sprite)
 	if _cfg["blocks"] and _cfg["radius"] > 0.0:
 		var shape := CollisionShape2D.new()

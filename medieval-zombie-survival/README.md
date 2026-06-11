@@ -38,6 +38,7 @@ horde grows larger and more aggressive every day.
 | `C` | Crafting |
 | `B` | Build menu |
 | `K` | Skill trees |
+| Mouse wheel | Zoom in / out |
 | `Esc` | Close panels / cancel build mode |
 
 ### Survival loop

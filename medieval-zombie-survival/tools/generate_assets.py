@@ -1981,6 +1981,129 @@ def round_tower():
     return with_shadow(outline(im), cx, 89, r + 3, 5)
 
 
+def fence_sprite():
+    """Post-and-rail fence along the NW-SE iso axis (flip_h for the other)."""
+    im = new(64, 44)
+    def base_y(x):
+        return 26 + (x - 4) * 12.0 / 56.0
+    for px_, post_h in ((6, 13), (32, 12), (58, 13)):
+        by = base_y(px_)
+        rect(im, px_ - 1, by - post_h, px_ + 1, by, TIMBER[1] + (255,))
+        rect(im, px_ - 1, by - post_h, px_ - 1, by, TIMBER[2] + (255,))
+        px(im, px_, by - post_h, WOOD[3] + (255,))
+    for rail_off in (9, 4):
+        for x in range(4, 61):
+            y = base_y(x) - rail_off
+            c = WOOD[2] if (x % 9) else WOOD[1]
+            px(im, x, y, c + (255,))
+            px(im, x, y + 1, WOOD[1] + (255,))
+    return with_shadow(outline(im), 32, 39, 26, 4, alpha=45)
+
+
+def cart_sprite():
+    im = new(56, 46)
+    disc(im, 38, 34, 6.5, 6.5, TIMBER[1] + (255,))
+    disc(im, 38, 34, 4.5, 4.5, WOOD[1] + (255,))
+    for y in range(16):
+        for x in range(40):
+            if in_diamond(x, y, 40, 16):
+                c = WOOD[2] if ((x + y * 2) % 7) else WOOD[1]
+                px(im, x + 6, y + 18, c + (255,))
+    for y in range(16):
+        for x in range(40):
+            if in_diamond(x, y, 40, 16) and not in_diamond(x, y + 1, 40, 16):
+                px(im, x + 6, y + 19, WOOD[0] + (255,))
+                px(im, x + 6, y + 20, WOOD[1] + (255,))
+    rngh = random.Random(3)
+    disc(im, 26, 22, 13, 6, (152, 128, 62, 255))
+    disc(im, 24, 20, 9, 4.4, (176, 150, 76, 255))
+    for i in range(26):
+        hx = 26 + rngh.randint(-12, 12)
+        hy = 21 + rngh.randint(-5, 5)
+        px(im, hx, hy, (196, 170, 90, 255) if rngh.random() < 0.5 else (140, 116, 56, 255))
+    disc(im, 16, 38, 7, 7, TIMBER[0] + (255,))
+    disc(im, 16, 38, 5, 5, WOOD[1] + (255,))
+    disc(im, 16, 38, 1.6, 1.6, IRON[1] + (255,))
+    line(im, 16, 33, 16, 43, TIMBER[1] + (255,))
+    line(im, 11, 38, 21, 38, TIMBER[1] + (255,))
+    line(im, 44, 28, 54, 24, WOOD[2] + (255,), w=2)
+    line(im, 6, 30, 2, 34, WOOD[2] + (255,), w=2)
+    return with_shadow(outline(im), 28, 42, 22, 5)
+
+
+def woodpile_sprite():
+    im = new(42, 30)
+    rngw = random.Random(5)
+    for n, ring_r, by in [(4, 5, 24), (3, 4, 19), (2, 3, 14)]:
+        for i in range(n):
+            cx = 21 + (i - (n - 1) / 2.0) * 9
+            line(im, cx, by, cx + 7, by - 4, WOOD[1] + (255,), w=2)
+            disc(im, cx, by, 4, 4, WOOD[2] + (255,))
+            disc(im, cx, by, 2.4, 2.4, WOOD[3] + (255,))
+            px(im, cx, by, WOOD[1] + (255,))
+            if rngw.random() < 0.5:
+                px(im, cx - 1, by - 1, WOOD[3] + (255,))
+    return with_shadow(outline(im), 21, 27, 17, 4)
+
+
+def sacks_sprite():
+    im = new(30, 24)
+    for sx, sy, r in ((9, 16, 6), (20, 17, 5), (14, 11, 5)):
+        disc(im, sx, sy, r, r * 0.9, (150, 128, 95, 255))
+        disc(im, sx - 1, sy - 2, r * 0.6, r * 0.5, (172, 150, 114, 255))
+        rect(im, sx - 1, sy - r - 1, sx + 1, sy - r + 1, (124, 104, 76, 255))
+        px(im, sx, sy - r - 2, (104, 86, 62, 255))
+    return with_shadow(outline(im), 15, 21, 12, 3)
+
+
+def make_clutter():
+    """Tiny ground decals scattered across the map for density."""
+    out = {}
+    im = new(12, 12)  # white/yellow meadow flowers
+    for fx, fy in ((3, 7), (8, 5), (6, 9)):
+        line(im, fx, fy, fx, fy + 2, GRASS[2] + (255,))
+        px(im, fx, fy - 1, (224, 218, 200, 255))
+        px(im, fx - 1, fy, (224, 218, 200, 255))
+        px(im, fx + 1, fy, (224, 218, 200, 255))
+        px(im, fx, fy, (208, 174, 78, 255))
+    out["flower_a"] = im
+    im = new(12, 12)  # red poppies
+    for fx, fy in ((4, 6), (8, 9)):
+        line(im, fx, fy, fx, fy + 2, GRASS[2] + (255,))
+        px(im, fx, fy - 1, (160, 56, 48, 255))
+        px(im, fx - 1, fy, (138, 44, 40, 255))
+        px(im, fx + 1, fy, (138, 44, 40, 255))
+    out["flower_b"] = im
+    im = new(12, 8)  # pebbles
+    for px_, py, r in ((3, 5, 1.6), (8, 4, 1.4), (6, 6, 1.2)):
+        disc(im, px_, py, r, r * 0.8, STONE[1] + (255,))
+        px(im, px_ - 1, py - 1, STONE[2] + (255,))
+    out["pebbles"] = im
+    im = new(12, 12)  # tall grass tuft
+    for i, bx in enumerate((3, 5, 7, 9)):
+        h = 4 + (i % 2) * 3
+        line(im, bx, 11, bx + (1 if i % 2 else -1), 11 - h, GRASS[2 + (i % 2)] + (255,))
+    out["tuft"] = im
+    im = new(14, 10)  # fallen leaves
+    rngl = random.Random(8)
+    for i in range(8):
+        lx, ly = rngl.randint(1, 12), rngl.randint(1, 8)
+        c = (120, 96, 50, 255) if rngl.random() < 0.5 else (96, 84, 44, 255)
+        px(im, lx, ly, c)
+        if rngl.random() < 0.5:
+            px(im, lx + 1, ly, shade(c, 0.85))
+    out["leaves"] = im
+    im = new(16, 10)  # dark stain / wear on roads
+    rngs = random.Random(9)
+    for i in range(22):
+        sx, sy = rngs.randint(1, 14), rngs.randint(1, 8)
+        if (sx - 8) ** 2 / 49.0 + (sy - 5) ** 2 / 16.0 <= 1.0:
+            px(im, sx, sy, (30, 26, 28, rngs.randint(36, 80)))
+    out["stain"] = im
+    for name, img in out.items():
+        save(img, "clutter/%s.png" % name)
+
+
 def make_town_buildings():
     save(make_building(3, 3, 30, 26, "timber", sd=0.0, door_fx=48,
                        windows_left=(20,), windows_right=(28, 62), chimney=(16, False)),
@@ -2004,6 +2127,11 @@ def make_town_buildings():
          "buildings/manor.png")
     save(well_sprite(), "buildings/well.png")
     save(lamp_post_sprite(), "buildings/lamp_post.png")
+    save(fence_sprite(), "props/fence.png")
+    save(cart_sprite(), "props/cart.png")
+    save(woodpile_sprite(), "props/woodpile.png")
+    save(sacks_sprite(), "props/sacks.png")
+    make_clutter()
     save(market_stall((150, 44, 40)), "props/stall_red.png")
     save(market_stall((178, 142, 54)), "props/stall_yellow.png")
     save(barrel_sprite(), "props/barrel.png")

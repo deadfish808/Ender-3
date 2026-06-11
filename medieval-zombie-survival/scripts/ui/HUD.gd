@@ -123,7 +123,7 @@ func _build_xp() -> void:
 
 func _build_hints() -> void:
 	var hints := UIKit.label(
-		"[WASD] move   [Shift] sprint   [Space] dodge   [LMB] attack/harvest   [RMB] frost nova   [E] interact   [1/2/3] weapons   [Tab] inventory   [C] craft   [B] build   [K] skills",
+		"[WASD] move   [Shift] sprint   [Space] dodge   [LMB] attack/harvest   [RMB] frost nova   [E] interact   [1/2/3] weapons   [Tab] inventory   [C] craft   [B] build   [K] skills   [Wheel] zoom",
 		11, UIKit.TEXT_DIM)
 	hints.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
 	hints.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER

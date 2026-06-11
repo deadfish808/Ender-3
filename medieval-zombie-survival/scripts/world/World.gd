@@ -66,6 +66,7 @@ func _ready() -> void:
 	_build_town()
 	_build_city()
 	_apply_blending()
+	_scatter_clutter()
 	_scatter_pickups()
 	_spawn_player()
 	build_manager = preload("res://scripts/world/BuildManager.gd").new()
@@ -342,6 +343,15 @@ func _build_town() -> void:
 			["barrel", Vector2i(50, 42)], ["crate", Vector2i(43, 51)]]:
 		_clear_tile(prop[1])
 		_spawn_resource(prop[0], prop[1])
+	# street dressing: fences around the cottage gardens, a cart, firewood
+	for fx in range(40, 44):
+		_dress("fence", Vector2i(fx, 45))
+	for fy in range(52, 55):
+		_dress("fence_f", Vector2i(46, fy))
+	_dress("cart", Vector2i(52, 47))
+	_dress("woodpile", Vector2i(51, 42))
+	_dress("sacks", Vector2i(45, 43))
+	_dress("woodpile", Vector2i(44, 53))
 	# a stocked chest by the forge
 	var ct := Vector2i(55, 47)
 	_clear_tile(ct)
@@ -437,6 +447,18 @@ func _build_city() -> void:
 		chest.position = tilemap.map_to_local(ct)
 		entities.add_child(chest)
 		occupied[ct] = chest
+	# street dressing
+	for fx in range(58, 62):
+		_dress("fence", Vector2i(fx, 29))
+	for fy in range(19, 22):
+		_dress("fence_f", Vector2i(75, fy))
+	_dress("cart", Vector2i(66, 34))
+	_dress("cart", Vector2i(74, 21))
+	_dress("woodpile", Vector2i(79, 21))
+	_dress("woodpile", Vector2i(61, 19))
+	_dress("sacks", Vector2i(65, 26))
+	_dress("sacks", Vector2i(76, 30))
+	_dress("sacks", Vector2i(72, 19))
 	# the road from town to the city gate
 	for x in range(58, 72):
 		for w in 2:
@@ -460,6 +482,42 @@ func _city_wall(t: Vector2i) -> void:
 	_clear_tile(t)
 	_spawn_resource("city_wall", t)
 	walkable[t] = false
+
+
+var _clutter_cache: Dictionary = {}
+
+
+## Sprinkle tiny ground decals: flowers, pebbles, tufts, leaves, road wear.
+func _scatter_clutter() -> void:
+	var grass_kinds := ["flower_a", "flower_b", "pebbles", "tuft", "tuft", "leaves"]
+	for tile in terrain_mat:
+		var m: String = terrain_mat[tile]
+		var roll := rng.randf()
+		if m == "grass":
+			var node: Node = occupied.get(tile)
+			if node == null and roll < 0.24:
+				_add_clutter(grass_kinds[rng.randi() % grass_kinds.size()], tile)
+			elif node != null and roll < 0.3:
+				_add_clutter("leaves", tile)
+		elif (m == "stone" or m == "dirt") and roll < 0.14:
+			_add_clutter("stain", tile)
+
+
+func _add_clutter(kind: String, tile: Vector2i) -> void:
+	if not _clutter_cache.has(kind):
+		_clutter_cache[kind] = load("res://assets/clutter/%s.png" % kind)
+	var s := Sprite2D.new()
+	s.texture = _clutter_cache[kind]
+	s.position = tilemap.map_to_local(tile) + Vector2(rng.randf_range(-18, 18), rng.randf_range(-7, 7))
+	s.flip_h = rng.randf() < 0.5
+	decals.add_child(s)
+
+
+## Place a dressing prop only on a free, walkable tile.
+func _dress(kind: String, tile: Vector2i) -> void:
+	if occupied.has(tile) or not walkable.get(tile, false):
+		return
+	_spawn_resource(kind, tile)
 
 
 ## Lay fringe tiles so higher-priority terrain bleeds over its neighbors.

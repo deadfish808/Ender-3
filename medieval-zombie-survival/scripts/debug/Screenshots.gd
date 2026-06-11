@@ -64,6 +64,13 @@ func _process(_delta: float) -> void:
 		126:
 			_shot("06_night_battle")
 		130:
+			Game.time_of_day = 0.2  # back to daylight
+			player._cam.zoom = Vector2(1.0, 1.0)
+			player._cam.position_smoothing_enabled = false
+			player.position = world.tilemap.map_to_local(Vector2i(48, 48))
+		140:
+			_shot("07_town_overview")
+		144:
 			get_tree().quit()
 
 

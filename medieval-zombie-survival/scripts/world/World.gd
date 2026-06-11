@@ -27,9 +27,14 @@ var _spawn_timer := 0.0
 var _groan_timer := 0.0
 
 
+const TOWN_CENTER := Vector2i(48, 48)
+const TOWN_RECT_MIN := Vector2i(38, 38)
+const TOWN_RECT_MAX := Vector2i(58, 58)
+
+
 func _ready() -> void:
 	Game.world = self
-	rng.randomize()
+	rng.seed = 1370053  # the world is a fixed, static place
 	_build_tilemap()
 	entities = Node2D.new()
 	entities.name = "Entities"
@@ -38,6 +43,7 @@ func _ready() -> void:
 	_generate_terrain()
 	_scatter_resources()
 	_build_ruins()
+	_build_town()
 	_scatter_pickups()
 	_spawn_player()
 	build_manager = preload("res://scripts/world/BuildManager.gd").new()
@@ -107,10 +113,10 @@ func _atlas(i: int) -> Vector2i:
 
 func _generate_terrain() -> void:
 	var height := FastNoiseLite.new()
-	height.seed = rng.randi()
+	height.seed = 91201
 	height.frequency = 0.035
 	var detail := FastNoiseLite.new()
-	detail.seed = rng.randi()
+	detail.seed = 4417
 	detail.frequency = 0.13
 	for x in MAP_SIZE:
 		for y in MAP_SIZE:
@@ -137,7 +143,7 @@ func _generate_terrain() -> void:
 
 func _scatter_resources() -> void:
 	var forest := FastNoiseLite.new()
-	forest.seed = rng.randi()
+	forest.seed = 77003
 	forest.frequency = 0.07
 	var center := Vector2i(MAP_SIZE / 2, MAP_SIZE / 2)
 	for x in MAP_SIZE:
@@ -180,6 +186,8 @@ func _build_ruins() -> void:
 	for r in 3:
 		var cx := rng.randi_range(14, MAP_SIZE - 15)
 		var cy := rng.randi_range(14, MAP_SIZE - 15)
+		if Vector2(cx - TOWN_CENTER.x, cy - TOWN_CENTER.y).length() < 20.0:
+			continue
 		var ok := true
 		for dx in range(-3, 4):
 			for dy in range(-3, 4):
@@ -223,8 +231,7 @@ func spawn_pickup(item: String, count: int, pos: Vector2) -> void:
 
 
 func _spawn_player() -> void:
-	var center := Vector2i(MAP_SIZE / 2, MAP_SIZE / 2)
-	var tile := _find_walkable_near(center)
+	var tile := _find_walkable_near(TOWN_CENTER + Vector2i(-2, 2))
 	var player := preload("res://scripts/player/Player.gd").new()
 	player.position = tilemap.map_to_local(tile)
 	entities.add_child(player)
@@ -239,6 +246,98 @@ func _find_walkable_near(start: Vector2i) -> Vector2i:
 				if walkable.get(t, false) and not occupied.has(t):
 					return t
 	return start
+
+
+# ---------------------------------------------------------------- town ------
+func _clear_tile(t: Vector2i) -> void:
+	var node: Node = occupied.get(t)
+	if node:
+		occupied.erase(t)
+		node.queue_free()
+
+
+func _pave(t: Vector2i, idx: int) -> void:
+	tilemap.set_cell(t, 0, _atlas(idx))
+	walkable[t] = true
+	_clear_tile(t)
+
+
+func _build_town() -> void:
+	# terraform: make sure the whole town footprint is dry land
+	for x in range(TOWN_RECT_MIN.x, TOWN_RECT_MAX.x + 1):
+		for y in range(TOWN_RECT_MIN.y, TOWN_RECT_MAX.y + 1):
+			var t := Vector2i(x, y)
+			_clear_tile(t)
+			if not walkable.get(t, false):
+				tilemap.set_cell(t, 0, _atlas(T_GRASS[absi(x * 11 + y * 17) % 3]))
+				walkable[t] = true
+	# cobbled plaza
+	for x in range(44, 52):
+		for y in range(44, 52):
+			_pave(Vector2i(x, y), T_STONE[absi(x + y) % 2])
+	# dirt roads leading out of the square
+	for i in range(TOWN_RECT_MIN.x, TOWN_RECT_MAX.x + 1):
+		for w in 2:
+			var rx := Vector2i(i, 48 + w)
+			var ry := Vector2i(48 + w, i)
+			if rx.x < 44 or rx.x > 51:
+				_pave(rx, T_DIRT[absi(rx.x) % 2])
+			if ry.y < 44 or ry.y > 51:
+				_pave(ry, T_DIRT[absi(ry.y) % 2])
+	# buildings
+	_place_building("cottage_a", Vector2i(41, 41))
+	_place_building("forge", Vector2i(52, 43))
+	_place_building("cottage_b", Vector2i(52, 52))
+	_place_building("tavern", Vector2i(40, 52))
+	_place_small("well", Vector2i(45, 45))
+	for lamp_tile in [Vector2i(44, 44), Vector2i(51, 44), Vector2i(44, 51), Vector2i(51, 51)]:
+		_place_small("lamp_post", lamp_tile)
+	# market stalls and loose loot props
+	for stall in [["stall_red", Vector2i(46, 50)], ["stall_yellow", Vector2i(50, 46)]]:
+		_clear_tile(stall[1])
+		_spawn_resource(stall[0], stall[1])
+		walkable[stall[1]] = false
+	for prop in [["barrel", Vector2i(44, 42)], ["barrel", Vector2i(51, 46)],
+			["crate", Vector2i(45, 53)], ["crate", Vector2i(55, 46)],
+			["barrel", Vector2i(50, 42)], ["crate", Vector2i(43, 51)]]:
+		_clear_tile(prop[1])
+		_spawn_resource(prop[0], prop[1])
+	# a stocked chest by the forge
+	var ct := Vector2i(55, 47)
+	_clear_tile(ct)
+	var chest := preload("res://scripts/world/Chest.gd").new()
+	chest.position = tilemap.map_to_local(ct)
+	entities.add_child(chest)
+	occupied[ct] = chest
+
+
+func _place_building(kind: String, top_left: Vector2i) -> void:
+	var building_script := preload("res://scripts/world/Building.gd")
+	var cfg: Dictionary = building_script.CONFIG[kind]
+	var w := int(cfg["w"])
+	var h := int(cfg["h"])
+	var b := building_script.new()
+	b.setup(kind)
+	var south := top_left + Vector2i(w - 1, h - 1)
+	b.position = tilemap.map_to_local(south) + Vector2(0, 16)
+	entities.add_child(b)
+	for dx in w:
+		for dy in h:
+			var t := top_left + Vector2i(dx, dy)
+			_clear_tile(t)
+			occupied[t] = b
+			walkable[t] = false
+
+
+func _place_small(kind: String, tile: Vector2i) -> void:
+	var building_script := preload("res://scripts/world/Building.gd")
+	var b := building_script.new()
+	b.setup(kind)
+	b.position = tilemap.map_to_local(tile)
+	entities.add_child(b)
+	_clear_tile(tile)
+	occupied[tile] = b
+	walkable[tile] = false
 
 
 # ------------------------------------------------------------- zombies ------

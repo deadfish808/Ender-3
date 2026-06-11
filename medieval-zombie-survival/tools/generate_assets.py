@@ -1347,6 +1347,429 @@ def project_icon():
     save(im, "../icon.png")
 
 
+
+# ---------------------------------------------------------- town buildings --
+# Large pre-built composite sprites: gabled slate roofs, half-timber and
+# masonry facades, glowing windows. Footprint W x H tiles; the south corner
+# of the footprint sits at image pixel (32*W, img_h - 2).
+
+def _b_stone(fx, yy, col_h, light, sd=0.0):
+    course_h = 7
+    row = yy // course_h
+    off = (row * 5 + int(value_noise(row, 1, 4.0 + sd) * 4)) % 12
+    bx = (fx + off) % 12
+    by = yy % course_h
+    base = STONE[2] if light else STONE[1]
+    if by == 0 or bx == 0:
+        return shade(base + (255,), 0.45)
+    block_id = (fx + off) // 12 + row * 17
+    n = value_noise(block_id * 2.9, row * 3.1, 4.0 + sd)
+    c = base + (255,)
+    if n > 0.7:
+        c = (STONE[3] if light else STONE[2]) + (255,)
+    elif n < 0.32:
+        c = shade(c, 0.85)
+    if by == 1 or bx == 1:
+        c = shade(c, 1.13)
+    elif by >= course_h - 2 or bx >= 10:
+        c = shade(c, 0.83)
+    if yy > col_h * 0.66:
+        m = value_noise(fx * 1.7, yy * 1.4, 14.0 + sd) + (yy - col_h * 0.66) / max(col_h * 0.34, 1) * 0.25
+        if m > 0.88:
+            c = LEAF[2] + (255,)
+        elif m > 0.8:
+            c = LEAF[1] + (255,)
+    return c
+
+
+def _b_timber(fx, yy, col_h, light, sd=0.0):
+    base = PLASTER[2] if light else PLASTER[1]
+    c = base + (255,)
+    n = value_noise(fx * 1.8, yy * 1.6, 6.0 + sd)
+    if n > 0.74:
+        c = (PLASTER[3] if light else PLASTER[2]) + (255,)
+    elif n < 0.3:
+        c = shade(c, 0.88)
+    if yy > col_h * 0.72 and value_noise(fx * 2.3, yy, 9.5 + sd) > 0.55:
+        c = shade(c, 0.8)
+    beam = yy <= 1 or yy >= col_h - 3
+    if (fx % 16) < 2:
+        beam = True
+    seg = fx // 16
+    t = (fx % 16 - 2) / 12.0
+    if 0.0 <= t <= 1.0:
+        by_ = (0.15 + 0.7 * (t if seg % 2 == 0 else 1.0 - t)) * col_h
+        if abs(yy - by_) < 1.5:
+            beam = True
+    if beam:
+        bc = TIMBER[1]
+        if value_noise(fx * 3.0, yy * 2.0, 7.5 + sd) > 0.7:
+            bc = TIMBER[2]
+        elif (fx + yy) % 7 == 0:
+            bc = TIMBER[0]
+        return bc + (255,)
+    return c
+
+
+def _face_color(style, fx, yy, col_h, light, sd):
+    if style == "stone":
+        return _b_stone(fx, yy, col_h, light, sd)
+    if style == "mixed":  # timber upper floor over stone ground floor
+        split = int(col_h * 0.55)
+        if yy < split:
+            return _b_timber(fx, yy, split, light, sd)
+        return _b_stone(fx, yy - split, col_h - split, light, sd)
+    return _b_timber(fx, yy, col_h, light, sd)
+
+
+def _draw_face_window(im, x_at, y_bot_fn, fx_c, wall_h, lit=True):
+    w, h = 5, 8
+    for dx in range(-(w // 2), w // 2 + 1):
+        x = x_at(fx_c + dx)
+        yb = y_bot_fn(x)
+        top = yb - int(wall_h * 0.78)
+        for dy in range(h):
+            y = top + dy
+            if dy == 0 and abs(dx) == w // 2:
+                continue  # arch corners
+            if dy == 0 or dy == h - 1 or abs(dx) == w // 2:
+                px(im, x, y, TIMBER[0] + (255,))
+            elif dx == 0 and dy >= 2:
+                px(im, x, y, TIMBER[0] + (255,))  # mullion
+            else:
+                t = dy / h
+                if lit:
+                    g = (int(252 - 60 * t), int(196 - 86 * t), int(106 - 56 * t))
+                else:
+                    g = (40, 44, 56)
+                px(im, x, y, g + (255,))
+        px(im, x_at(fx_c + dx), y_bot_fn(x_at(fx_c + dx)) - int(wall_h * 0.78) + h, TIMBER[2] + (255,))
+
+
+def _draw_face_door(im, x_at, y_bot_fn, fx_c, wall_h):
+    w = 11
+    for dx in range(-(w // 2), w // 2 + 1):
+        x = x_at(fx_c + dx)
+        yb = y_bot_fn(x)
+        hgt = 17 - max(0, abs(dx) - 3) * 2
+        for i in range(hgt):
+            y = yb - i
+            c = WOOD[1] if ((fx_c + dx) % 3) else WOOD[0]
+            if i == hgt - 1:
+                c = TIMBER[0]
+            px(im, x, y, c + (255,))
+    x_h = x_at(fx_c + 3)
+    px(im, x_h, y_bot_fn(x_h) - 7, (196, 168, 76, 255))
+    # slate awning
+    for dx in range(-(w // 2) - 2, w // 2 + 3):
+        x = x_at(fx_c + dx)
+        ay = y_bot_fn(x) - 20
+        px(im, x, ay, SLATE[3] + (255,))
+        px(im, x, ay + 1, SLATE[2] + (255,))
+        px(im, x, ay + 2, (30, 26, 30, 200))
+
+
+def _dist_to_seg(p, a, b):
+    ax, ay = a
+    bx, by = b
+    pxx, pyy = p
+    dx, dy = bx - ax, by - ay
+    l2 = dx * dx + dy * dy
+    if l2 == 0:
+        return math.hypot(pxx - ax, pyy - ay)
+    t = max(0.0, min(1.0, ((pxx - ax) * dx + (pyy - ay) * dy) / l2))
+    return math.hypot(pxx - (ax + t * dx), pyy - (ay + t * dy))
+
+
+def _fill_gable(im, p0, p1, apex, style, sd, lit_window=False):
+    """Triangular gable end between wall-top edge p0-p1 and the ridge apex."""
+    xs = [p0[0], p1[0], apex[0]]
+    ys = [p0[1], p1[1], apex[1]]
+    midx = (p0[0] + p1[0]) / 2
+
+    def sign(a, b, p):
+        return (b[0] - a[0]) * (p[1] - a[1]) - (b[1] - a[1]) * (p[0] - a[0])
+
+    for y in range(int(min(ys)), int(max(ys)) + 1):
+        for x in range(int(min(xs)), int(max(xs)) + 1):
+            p = (x + 0.5, y + 0.5)
+            d0 = sign(p0, p1, p)
+            d1 = sign(p1, apex, p)
+            d2 = sign(apex, p0, p)
+            neg = (d0 < 0) or (d1 < 0) or (d2 < 0)
+            pos = (d0 > 0) or (d1 > 0) or (d2 > 0)
+            if neg and pos:
+                continue
+            base = PLASTER[1] if style != "stone" else STONE[1]
+            n = value_noise(x * 1.7, y * 1.5, 8.0 + sd)
+            c = base + (255,)
+            if n > 0.72:
+                c = (PLASTER[2] if style != "stone" else STONE[2]) + (255,)
+            elif n < 0.3:
+                c = shade(c, 0.86)
+            # timber frame: rafters along the two slopes, sill, king post
+            if (_dist_to_seg(p, p0, apex) < 1.8 or _dist_to_seg(p, p1, apex) < 1.8
+                    or _dist_to_seg(p, p0, p1) < 1.6 or abs(x - midx) < 1.0):
+                c = TIMBER[1] + (255,)
+                if (x + y) % 7 == 0:
+                    c = TIMBER[0] + (255,)
+            px(im, x, y, c)
+    if lit_window:
+        wx, wy = int(midx), int((p0[1] + p1[1]) / 2 + apex[1]) // 2
+        for dx in range(-2, 3):
+            for dy in range(-2, 3):
+                if abs(dx) + abs(dy) <= 2:
+                    px(im, wx + dx + 2, wy + dy, (250, 190, 100, 255))
+                elif abs(dx) + abs(dy) == 3:
+                    px(im, wx + dx + 2, wy + dy, TIMBER[0] + (255,))
+
+
+def _fill_roof_plane(im, e0, e1, r0, r1, dark=1.0):
+    """Slate shingle plane between eave edge e0-e1 and ridge edge r0-r1."""
+    drop = math.hypot(r0[0] - e0[0], r0[1] - e0[1])
+    rows = max(4, int(drop / 3.2))
+    n_s = int(math.hypot(e1[0] - e0[0], e1[1] - e0[1]) * 2) + 1
+    n_t = int(drop * 2) + 2
+    for si in range(n_s + 1):
+        s = si / n_s
+        bx = e0[0] + (e1[0] - e0[0]) * s
+        by = e0[1] + (e1[1] - e0[1]) * s
+        tx = r0[0] + (r1[0] - r0[0]) * s
+        ty = r0[1] + (r1[1] - r0[1]) * s
+        for ti in range(n_t + 1):
+            t = ti / n_t
+            x = bx + (tx - bx) * t
+            y = by + (ty - by) * t
+            row = int(t * rows)
+            colu = int(s * n_s / 2.0) + (row % 2) * 3
+            n = value_noise(colu * 1.3, row * 2.7, 23.0)
+            c = SLATE[2] if n > 0.45 else SLATE[1]
+            if n > 0.82:
+                c = SLATE[3]
+            fr = t * rows - row
+            if fr < 0.22:
+                c = SLATE[0]
+            if (colu % 6) == 0:
+                c = shade(c + (255,), 0.82)[:3]
+            px(im, x, y, shade(c + (255,), dark))
+    line(im, r0[0], r0[1], r1[0], r1[1], shade(SLATE[1] + (255,), 0.9), w=2)
+    line(im, r0[0], r0[1] - 1, r1[0], r1[1] - 1, SLATE[3] + (255,))
+
+
+def _chimney(im, cx, base_y, height, width=10, fire=False):
+    for i in range(height):
+        y = base_y - i
+        w = width - (i * 2) // height
+        for dx in range(-w // 2, w // 2 + 1):
+            fx = dx + w // 2
+            c = _b_stone(fx + 3, i, height, dx < 0, sd=2.0)
+            px(im, cx + dx, y, c)
+    top = base_y - height
+    cw = width + 2 - 2
+    for dx in range(-cw // 2 - 1, cw // 2 + 2):
+        px(im, cx + dx, top, STONE[3] + (255,))
+        px(im, cx + dx, top + 1, STONE[1] + (255,))
+    for dx in range(-cw // 2 + 1, cw // 2):
+        px(im, cx + dx, top + 2, (24, 18, 20, 255))
+    if fire:
+        disc(im, cx, top + 1, cw / 2 - 0.5, 2.2, (224, 120, 40, 255))
+        disc(im, cx, top, cw / 3, 1.6, (252, 190, 90, 255))
+        for fdx, fdy in ((-2, -2), (1, -3), (3, -1), (0, -5), (-3, -4)):
+            px(im, cx + fdx, top + fdy, (252, 170, 70, 230))
+        for sdx, sdy in ((2, -8), (0, -11), (3, -14)):
+            disc(im, cx + sdx, top + sdy, 2.2, 1.6, (70, 68, 74, 120))
+
+
+def make_building(W, H, wall_h, roof_h, style="timber", sd=0.0, door_fx=None,
+                  windows_left=(), windows_right=(), chimney=None, gable_window=False,
+                  extra_top=18):
+    bw = (W + H) * 32
+    bh = (W + H) * 16 + wall_h + roof_h + extra_top
+    im = new(bw, bh)
+    S = (32 * W, bh - 2)
+    Wc = (S[0] - 32 * W, S[1] - 16 * W)
+    Ec = (S[0] + 32 * H, S[1] - 16 * H)
+    # --- left (SW) face ---
+    def ybot_l(x):
+        return Wc[1] + (x - Wc[0]) * 0.5
+    def ybot_r(x):
+        return S[1] - (x - S[0]) * 0.5
+    for x in range(Wc[0], S[0]):
+        yb = int(ybot_l(x))
+        fx = x - Wc[0]
+        for yy in range(wall_h):
+            px(im, x, yb - wall_h + 1 + yy, _face_color(style, fx, yy, wall_h, True, sd))
+    for x in range(S[0], Ec[0] + 1):
+        yb = int(ybot_r(x))
+        fx = x - S[0]
+        for yy in range(wall_h):
+            px(im, x, yb - wall_h + 1 + yy, _face_color(style, fx, yy, wall_h, False, sd))
+    # door + windows
+    if door_fx is not None:
+        _draw_face_door(im, lambda fxx: Wc[0] + fxx, ybot_l, door_fx, wall_h)
+    for wfx in windows_left:
+        _draw_face_window(im, lambda fxx: Wc[0] + fxx, ybot_l, wfx, wall_h)
+    for wfx in windows_right:
+        _draw_face_window(im, lambda fxx: S[0] + fxx, ybot_r, wfx, wall_h)
+    # --- roof ---
+    Wt = (Wc[0], Wc[1] - wall_h)
+    St = (S[0], S[1] - wall_h)
+    Et = (Ec[0], Ec[1] - wall_h)
+    Nt = (Wt[0] + 32 * H, Wt[1] - 16 * H)
+    A = ((Wt[0] + Nt[0]) / 2, (Wt[1] + Nt[1]) / 2 - roof_h)
+    B = ((St[0] + Et[0]) / 2, (St[1] + Et[1]) / 2 - roof_h)
+    # eave overhang: push eave edges outward/down a bit
+    def overhang(e, r, amt=3.0):
+        d = (e[0] - r[0], e[1] - r[1])
+        l = math.hypot(*d)
+        return (e[0] + d[0] / l * amt, e[1] + d[1] / l * amt)
+    Wt_o = overhang(Wt, A)
+    St_o = overhang(St, B)
+    Nt_o = overhang(Nt, A)
+    Et_o = overhang(Et, B)
+    # back plane first (mostly hidden), then gable, then front plane
+    _fill_roof_plane(im, Nt_o, Et_o, A, B, dark=0.62)
+    _fill_gable(im, St, Et, (B[0], B[1] + 2), style, sd, lit_window=gable_window)
+    _fill_roof_plane(im, Wt_o, St_o, A, B, dark=1.0)
+    # fascia under front eave
+    line(im, Wt_o[0], Wt_o[1] + 1, St_o[0], St_o[1] + 1, TIMBER[0] + (255,))
+    if chimney:
+        ch_h, fire = chimney
+        _chimney(im, int(B[0]), int(B[1] + 8), ch_h, 12 if fire else 8, fire=fire)
+    return outline(im)
+
+
+def well_sprite():
+    im = new(52, 56)
+    # stone ring
+    for a in range(40):
+        ang = a / 40 * math.tau
+        x = 26 + math.cos(ang) * 14
+        y = 44 + math.sin(ang) * 7
+        disc(im, x, y, 2.6, 2.0, STONE[1 if a % 2 else 2] + (255,))
+    disc(im, 26, 42, 9, 4.5, (16, 18, 26, 255))  # dark water hole
+    px(im, 23, 41, (60, 80, 100, 255))
+    # posts + tiny slate roof
+    rect(im, 12, 18, 14, 40, TIMBER[1] + (255,))
+    rect(im, 38, 18, 40, 40, TIMBER[1] + (255,))
+    rect(im, 12, 18, 12, 40, TIMBER[2] + (255,))
+    for i in range(8):
+        for dx in range(-(16 - i), 17 - i):
+            c = SLATE[2] if (dx + i) % 5 else SLATE[0]
+            px(im, 26 + dx, 16 - i, c + (255,))
+    line(im, 26, 18, 26, 30, (200, 195, 180, 255))  # rope
+    rect(im, 24, 30, 28, 34, WOOD[1] + (255,))      # bucket
+    rect(im, 24, 30, 28, 30, WOOD[3] + (255,))
+    return with_shadow(outline(im), 26, 46, 16, 5)
+
+
+def lamp_post_sprite():
+    im = new(22, 58)
+    rect(im, 10, 12, 12, 52, TIMBER[1] + (255,))
+    rect(im, 10, 12, 10, 52, TIMBER[2] + (255,))
+    disc(im, 11, 53, 5, 2.2, STONE[1] + (255,))
+    # lantern box
+    rect(im, 7, 4, 15, 13, TIMBER[0] + (255,))
+    rect(im, 8, 5, 14, 12, (252, 196, 106, 255))
+    rect(im, 9, 6, 13, 9, (255, 224, 150, 255))
+    px(im, 11, 2, TIMBER[0] + (255,))
+    rect(im, 10, 3, 12, 3, TIMBER[0] + (255,))
+    return with_shadow(outline(im), 11, 54, 7, 2.6)
+
+
+def barrel_sprite():
+    im = new(26, 30)
+    for y in range(6, 27):
+        t = (y - 6) / 21.0
+        wdt = int(9 + 2.6 * math.sin(t * math.pi))
+        for dx in range(-wdt, wdt + 1):
+            c = WOOD[2] if (dx + 13) % 4 else WOOD[1]
+            if dx > wdt - 3:
+                c = WOOD[0]
+            elif dx < -wdt + 2:
+                c = WOOD[3]
+            px(im, 13 + dx, y, c + (255,))
+    for hy in (9, 16, 23):
+        for dx in range(-12, 13):
+            if im.getpixel((13 + dx, hy))[3] > 0:
+                px(im, 13 + dx, hy, IRON[0 if dx > 4 else 1] + (255,))
+    disc(im, 13, 6, 9, 3, WOOD[1] + (255,))
+    disc(im, 13, 6, 7, 2.2, WOOD[2] + (255,))
+    return with_shadow(outline(im), 13, 27, 11, 3)
+
+
+def crate_sprite():
+    im = new(26, 26)
+    rect(im, 3, 6, 22, 23, WOOD[1] + (255,))
+    for x in range(3, 23, 4):
+        line(im, x, 6, x, 23, WOOD[0] + (255,))
+    for edge in ((3, 6, 22, 6), (3, 23, 22, 23), (3, 6, 3, 23), (22, 6, 22, 23)):
+        line(im, *edge, TIMBER[1] + (255,))
+    line(im, 3, 6, 22, 23, TIMBER[1] + (255,))
+    line(im, 4, 6, 23, 23, TIMBER[2] + (255,))
+    px(im, 4, 7, IRON[2] + (255,))
+    px(im, 21, 7, IRON[2] + (255,))
+    px(im, 4, 22, IRON[2] + (255,))
+    px(im, 21, 22, IRON[2] + (255,))
+    return with_shadow(outline(im), 13, 24, 11, 3)
+
+
+def market_stall(stripe):
+    im = new(56, 52)
+    # table
+    for y in range(14):
+        for x in range(44):
+            if in_diamond(x, y, 44, 14):
+                c = WOOD[2] if value_noise(x, y, 31.0) < 0.7 else WOOD[3]
+                px(im, x + 6, y + 30, c + (255,))
+    for y in range(14):
+        for x in range(44):
+            if in_diamond(x, y, 44, 14) and not in_diamond(x, y + 1, 44, 14):
+                px(im, x + 6, y + 31, WOOD[0] + (255,))
+                px(im, x + 6, y + 32, WOOD[1] + (255,))
+    # goods on the table
+    for gx, gy, gc in ((18, 34, (150, 44, 40)), (21, 33, (170, 60, 48)), (24, 35, (150, 44, 40)),
+                       (33, 33, (168, 150, 110)), (37, 35, (148, 130, 96))):
+        disc(im, gx, gy, 1.8, 1.4, gc + (255,))
+    rect(im, 30, 31, 35, 34, (160, 142, 104, 255))  # sack
+    # posts
+    for lx, ly in ((8, 34), (48, 34), (20, 42), (40, 42)):
+        rect(im, lx - 1, ly - 22, lx, ly + 4, TIMBER[1] + (255,))
+        px(im, lx - 1, ly - 22, TIMBER[2] + (255,))
+    # striped awning (sloped iso sheet)
+    for y in range(16):
+        for x in range(48):
+            if in_diamond(x, y, 48, 16):
+                stripe_i = ((x + y * 2) // 5) % 2
+                c = stripe if stripe_i == 0 else (210, 198, 176)
+                sh = 1.0 - y / 28.0
+                px(im, x + 4, y + 6 - (x // 14), shade(c + (255,), sh))
+    return with_shadow(outline(im), 28, 46, 20, 5)
+
+
+def make_town_buildings():
+    save(make_building(3, 3, 30, 26, "timber", sd=0.0, door_fx=48,
+                       windows_left=(20,), windows_right=(28, 62), chimney=(16, False)),
+         "buildings/cottage_a.png")
+    save(make_building(3, 3, 30, 24, "timber", sd=5.0, door_fx=40,
+                       windows_left=(70,), windows_right=(30,), chimney=None,
+                       gable_window=True),
+         "buildings/cottage_b.png")
+    save(make_building(5, 3, 38, 30, "mixed", sd=9.0, door_fx=80,
+                       windows_left=(28, 52, 120), windows_right=(30, 62),
+                       chimney=(18, False), gable_window=True),
+         "buildings/tavern.png")
+    save(make_building(4, 3, 32, 24, "stone", sd=13.0, door_fx=64,
+                       windows_left=(30,), windows_right=(40,), chimney=(34, True)),
+         "buildings/forge.png")
+    save(well_sprite(), "buildings/well.png")
+    save(lamp_post_sprite(), "buildings/lamp_post.png")
+    save(market_stall((150, 44, 40)), "props/stall_red.png")
+    save(market_stall((178, 142, 54)), "props/stall_yellow.png")
+    save(barrel_sprite(), "props/barrel.png")
+    save(crate_sprite(), "props/crate.png")
+
+
 # ---------------------------------------------------------------- main ------
 def main():
     build_terrain_atlas()
@@ -1375,6 +1798,7 @@ def main():
     save(campfire_sheet(), "buildables/campfire.png")
     save(workbench(), "buildables/workbench.png")
 
+    make_town_buildings()
     make_item_icons()
     fx_assets()
     project_icon()

@@ -20,6 +20,14 @@ const CONFIG := {
 			"yield": [["stone", 1.0]], "radius": 16.0, "blocks": true},
 	"ruin_wall2": {"texture": "res://assets/props/ruin_wall2.png", "hits": 8, "offset": -16.0,
 			"yield": [["stone", 1.0]], "radius": 16.0, "blocks": true},
+	"barrel": {"texture": "res://assets/props/barrel.png", "hits": 2, "offset": -13.0,
+			"yield": [["wood", 0.8], ["cloth", 0.4], ["berries", 0.35]], "radius": 7.0, "blocks": true},
+	"crate": {"texture": "res://assets/props/crate.png", "hits": 2, "offset": -11.0,
+			"yield": [["wood", 0.8], ["flint", 0.35], ["arrow", 0.3]], "radius": 7.0, "blocks": true},
+	"stall_red": {"texture": "res://assets/props/stall_red.png", "hits": 3, "offset": -21.0,
+			"yield": [["berries", 0.7], ["cloth", 0.4], ["rope", 0.25]], "radius": 10.0, "blocks": true},
+	"stall_yellow": {"texture": "res://assets/props/stall_yellow.png", "hits": 3, "offset": -21.0,
+			"yield": [["mushroom", 0.6], ["fiber", 0.5], ["rope", 0.25]], "radius": 10.0, "blocks": true},
 }
 
 var kind := ""

@@ -37,9 +37,10 @@ func _one_shot(parent: Node, pos: Vector2, frames: SpriteFrames, rot := 0.0, z :
 	return s
 
 
-func slash(parent: Node, pos: Vector2, angle: float) -> void:
+func slash(parent: Node, pos: Vector2, angle: float, scale := 1.0) -> void:
 	var frames := strip_frames("res://assets/fx/slash.png", 36, 36, 3, 18.0)
-	_one_shot(parent, pos, frames, angle)
+	var s := _one_shot(parent, pos, frames, angle)
+	s.scale = Vector2.ONE * scale
 
 
 func blood(parent: Node, pos: Vector2) -> void:
@@ -67,6 +68,42 @@ func float_text(parent: Node, pos: Vector2, text: String, color := Color.WHITE) 
 	tw.tween_property(label, "position:y", label.position.y - 26.0, 0.7)
 	tw.tween_property(label, "modulate:a", 0.0, 0.7).set_delay(0.25)
 	tw.chain().tween_callback(label.queue_free)
+
+
+## A fallen zombie left to rot, fading away over a few seconds.
+func corpse(parent: Node, pos: Vector2, tex: Texture2D, flip: bool, tint: Color) -> void:
+	var s := Sprite2D.new()
+	s.texture = tex
+	s.flip_h = flip
+	s.position = pos + Vector2(0, 1)
+	s.offset = Vector2(0, -16)
+	s.rotation = randf_range(-0.3, 0.3) + (PI / 2.0 if randf() < 0.5 else -PI / 2.0)
+	s.modulate = tint * Color(0.62, 0.58, 0.6, 1.0)
+	parent.add_child(s)
+	var tw := s.create_tween()
+	tw.tween_interval(5.0)
+	tw.tween_property(s, "modulate:a", 0.0, 3.0)
+	tw.tween_callback(s.queue_free)
+
+
+## A lingering blood stain on the ground.
+func blood_decal(pos: Vector2) -> void:
+	var world = Game.world
+	if world == null or world.decals == null:
+		return
+	var at := AtlasTexture.new()
+	at.atlas = load("res://assets/fx/blood.png")
+	at.region = Rect2(48, 0, 24, 24)
+	var s := Sprite2D.new()
+	s.texture = at
+	s.position = pos
+	s.rotation = randf() * TAU
+	s.modulate = Color(0.8, 0.75, 0.78, 0.85)
+	world.decals.add_child(s)
+	var tw := s.create_tween()
+	tw.tween_interval(9.0)
+	tw.tween_property(s, "modulate:a", 0.0, 4.0)
+	tw.tween_callback(s.queue_free)
 
 
 ## Small footstep dust puff (sprinting).

@@ -4,6 +4,11 @@ An isometric medieval zombie survival game for **Godot 4.3+**, inspired by Proje
 Gather resources, craft gear, fortify a camp, and level three skill trees — **Fighter**,
 **Archer**, and **Mage** — while the dead grow stronger every night.
 
+The world is a fixed, hand-authored map with two settlements: a small **starter town**
+(cobbled plaza, well, market stalls, blacksmith forge, lamp-lit streets) where you spawn,
+and a larger **walled city** to the north — round watchtowers, a crenellated **castle
+keep**, manor, tavern and forge — overrun by the dead and full of loot.
+
 ![Day world](docs/screenshots/01_day_world.png)
 ![Night battle](docs/screenshots/06_night_battle.png)
 
@@ -24,6 +29,7 @@ horde grows larger and more aggressive every day.
 |---|---|
 | `WASD` / arrows | Move |
 | `Shift` | Sprint (drains stamina) |
+| `Space` | Dodge roll (i-frames, costs stamina) |
 | Left mouse | Attack / harvest (aim with mouse) |
 | Right mouse | Frost Nova (once learned) |
 | `E` | Interact: open doors and chests, repair structures (1 wood) |
@@ -47,6 +53,9 @@ horde grows larger and more aggressive every day.
   structures that block their path — repair them with wood (`E`).
 - **Zombies** drop cloth, iron scraps, and **dark essence** (more at night), the fuel
   for magic staves.
+- **Combat**: melee swings chain into a 3-hit combo with a heavy finisher; all attacks
+  can crit; dodge roll through hordes with `Space`. Zombies lurch, flank around
+  obstacles, and leave corpses and blood where they fall.
 
 ### Enemies
 

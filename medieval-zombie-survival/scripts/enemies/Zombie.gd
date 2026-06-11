@@ -32,6 +32,10 @@ var _attack_cd := 0.0
 var _bash_cd := 0.0
 var _slow_mult := 1.0
 var _slow_time := 0.0
+var _lurch := 0.0
+var _t := 0.0
+var _avoid_dir := Vector2.ZERO
+var _avoid_time := 0.0
 
 var _sprite: AnimatedSprite2D
 var _bar: Node2D
@@ -76,6 +80,7 @@ func _ready() -> void:
 	_bar.position = Vector2(0, -34)
 	add_child(_bar)
 	_think = randf() * 0.3
+	_lurch = randf() * TAU
 
 
 func _physics_process(delta: float) -> void:
@@ -99,12 +104,23 @@ func _physics_process(delta: float) -> void:
 	else:
 		desired = _wander_dir
 	desired += _separation
+	if _avoid_time > 0.0:
+		_avoid_time -= delta
+		desired += _avoid_dir * 1.3
 	# smooth steering: zombies turn rather than snap
 	_move_dir = _move_dir.lerp(desired, 1.0 - exp(-7.0 * delta))
 	var move := _move_dir
 	move.y *= 0.6
-	velocity = move * speed * _slow_mult
+	# shambling lurch: walkers surge and stall instead of gliding
+	_t += delta
+	var lurch_mult := 1.0
+	if type != "runner":
+		lurch_mult = 0.55 + 0.55 * maxf(0.0, sin(_t * 2.4 + _lurch))
+	if Game.is_night():
+		lurch_mult *= 1.15
+	velocity = move * speed * _slow_mult * lurch_mult
 	move_and_slide()
+	_steer_around_obstacles()
 	_update_anim(move)
 
 	if _aggro and player and is_instance_valid(player) and not player.dead:
@@ -139,6 +155,23 @@ func _think_tick() -> void:
 			_aggro = false
 	if not _aggro and randf() < 0.12:
 		_wander_dir = Vector2.from_angle(randf() * TAU) if randf() < 0.7 else Vector2.ZERO
+
+
+func _steer_around_obstacles() -> void:
+	if not _aggro or _avoid_time > 0.0:
+		return
+	for i in get_slide_collision_count():
+		var col := get_slide_collision(i)
+		var node := col.get_collider()
+		if node == null or node.is_in_group("structures") or node == Game.player:
+			continue  # structures get bashed, not avoided
+		var normal := col.get_normal()
+		var side := signf(normal.cross(_move_dir))
+		if side == 0.0:
+			side = 1.0
+		_avoid_dir = normal.rotated(side * PI / 2.0)
+		_avoid_time = 0.6
+		return
 
 
 func _compute_separation() -> Vector2:
@@ -221,6 +254,9 @@ func apply_slow(mult: float, duration: float) -> void:
 
 func _die() -> void:
 	FX.blood(get_parent(), position)
+	FX.blood_decal(position)
+	var corpse_tex: Texture2D = _sprite.sprite_frames.get_frame_texture("idle_" + ("e" if facing == "w" else facing), 0)
+	FX.corpse(get_parent(), position, corpse_tex, _sprite.flip_h, TYPES[type]["tint"])
 	Game.play_sfx("zombie", -8.0, 0.25)
 	Game.add_xp(xp_value)
 	Game.kills += 1

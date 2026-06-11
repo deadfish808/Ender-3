@@ -14,6 +14,7 @@ const T_STONE := [9, 10]
 const ZOMBIE_CAP := 50
 
 var tilemap: TileMapLayer
+var decals: Node2D
 var entities: Node2D
 var build_manager: Node2D
 var hud: CanvasLayer
@@ -30,12 +31,17 @@ var _groan_timer := 0.0
 const TOWN_CENTER := Vector2i(48, 48)
 const TOWN_RECT_MIN := Vector2i(38, 38)
 const TOWN_RECT_MAX := Vector2i(58, 58)
+const CITY_MIN := Vector2i(56, 10)
+const CITY_MAX := Vector2i(86, 38)
 
 
 func _ready() -> void:
 	Game.world = self
 	rng.seed = 1370053  # the world is a fixed, static place
 	_build_tilemap()
+	decals = Node2D.new()
+	decals.name = "Decals"
+	add_child(decals)
 	entities = Node2D.new()
 	entities.name = "Entities"
 	entities.y_sort_enabled = true
@@ -44,6 +50,7 @@ func _ready() -> void:
 	_scatter_resources()
 	_build_ruins()
 	_build_town()
+	_build_city()
 	_scatter_pickups()
 	_spawn_player()
 	build_manager = preload("res://scripts/world/BuildManager.gd").new()
@@ -187,6 +194,8 @@ func _build_ruins() -> void:
 		var cx := rng.randi_range(14, MAP_SIZE - 15)
 		var cy := rng.randi_range(14, MAP_SIZE - 15)
 		if Vector2(cx - TOWN_CENTER.x, cy - TOWN_CENTER.y).length() < 20.0:
+			continue
+		if cx > CITY_MIN.x - 8 and cy < CITY_MAX.y + 8:
 			continue
 		var ok := true
 		for dx in range(-3, 4):
@@ -338,6 +347,87 @@ func _place_small(kind: String, tile: Vector2i) -> void:
 	_clear_tile(tile)
 	occupied[tile] = b
 	walkable[tile] = false
+
+
+func _build_city() -> void:
+	# terraform the whole walled city to dry land
+	for x in range(CITY_MIN.x, CITY_MAX.x + 1):
+		for y in range(CITY_MIN.y, CITY_MAX.y + 1):
+			var t := Vector2i(x, y)
+			_clear_tile(t)
+			tilemap.set_cell(t, 0, _atlas(T_GRASS[absi(x * 11 + y * 17) % 3]))
+			walkable[t] = true
+	# perimeter walls with a south gate at x 69-71
+	var gate_xs := [69, 70, 71]
+	for x in range(CITY_MIN.x, CITY_MAX.x + 1):
+		_city_wall(Vector2i(x, CITY_MIN.y))
+		if not gate_xs.has(x):
+			_city_wall(Vector2i(x, CITY_MAX.y))
+	for y in range(CITY_MIN.y + 1, CITY_MAX.y):
+		_city_wall(Vector2i(CITY_MIN.x, y))
+		_city_wall(Vector2i(CITY_MAX.x, y))
+	# watchtowers: corners, gate flanks, keep flanks
+	for tt in [Vector2i(57, 11), Vector2i(85, 11), Vector2i(57, 37), Vector2i(85, 37),
+			Vector2i(68, 37), Vector2i(72, 37), Vector2i(64, 14), Vector2i(73, 14)]:
+		_clear_tile(tt)
+		_place_small("round_tower", tt)
+	# cobbled plaza + main street up from the gate
+	for x in range(62, 79):
+		for y in range(22, 33):
+			_pave(Vector2i(x, y), T_STONE[absi(x + y) % 2])
+	for y in range(33, 38):
+		for w in 2:
+			_pave(Vector2i(70 + w, y), T_DIRT[absi(y) % 2])
+	# castle and buildings
+	_place_building("castle_keep", Vector2i(66, 13))
+	_place_building("manor", Vector2i(58, 24))
+	_place_building("tavern", Vector2i(72, 33))
+	_place_building("cottage_a", Vector2i(60, 33))
+	_place_building("cottage_b", Vector2i(76, 18))
+	_place_building("forge", Vector2i(80, 24))
+	_place_small("well", Vector2i(70, 27))
+	for lamp_tile in [Vector2i(63, 22), Vector2i(77, 22), Vector2i(63, 31), Vector2i(77, 31), Vector2i(69, 35)]:
+		_clear_tile(lamp_tile)
+		_place_small("lamp_post", lamp_tile)
+	for stall in [["stall_red", Vector2i(67, 29)], ["stall_yellow", Vector2i(73, 29)],
+			["stall_red", Vector2i(70, 23)]]:
+		_clear_tile(stall[1])
+		_spawn_resource(stall[0], stall[1])
+		walkable[stall[1]] = false
+	for prop in [["barrel", Vector2i(65, 24)], ["barrel", Vector2i(75, 25)], ["crate", Vector2i(64, 30)],
+			["crate", Vector2i(76, 28)], ["barrel", Vector2i(71, 19)], ["crate", Vector2i(60, 27)],
+			["barrel", Vector2i(81, 28)], ["crate", Vector2i(83, 22)]]:
+		_clear_tile(prop[1])
+		_spawn_resource(prop[0], prop[1])
+	for ct in [Vector2i(68, 18), Vector2i(59, 28), Vector2i(82, 30)]:
+		_clear_tile(ct)
+		var chest := preload("res://scripts/world/Chest.gd").new()
+		chest.position = tilemap.map_to_local(ct)
+		entities.add_child(chest)
+		occupied[ct] = chest
+	# the road from town to the city gate
+	for x in range(58, 72):
+		for w in 2:
+			_pave(Vector2i(x, 48 + w), T_DIRT[absi(x) % 2])
+	for y in range(39, 50):
+		for w in 2:
+			_pave(Vector2i(70 + w, y), T_DIRT[absi(y) % 2])
+	# the city is overrun: it guards its loot
+	for i in 12:
+		var zx := 58 + (i * 7) % 26
+		var zy := 13 + (i * 11) % 23
+		var zt := Vector2i(zx, zy)
+		if walkable.get(zt, false) and not occupied.has(zt):
+			var z := preload("res://scripts/enemies/Zombie.gd").new()
+			z.setup("brute" if i % 6 == 0 else "walker")
+			z.position = tilemap.map_to_local(zt)
+			entities.add_child(z)
+
+
+func _city_wall(t: Vector2i) -> void:
+	_clear_tile(t)
+	_spawn_resource("city_wall", t)
+	walkable[t] = false
 
 
 # ------------------------------------------------------------- zombies ------

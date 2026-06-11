@@ -27,6 +27,9 @@ var _stamina_delay := 0.0
 var _knock := Vector2.ZERO
 var _motion := Vector2.ZERO
 var _dust_timer := 0.0
+var _dodge_cd := 0.0
+var _combo_stage := 0
+var _combo_timer := 0.0
 
 var _sprite: AnimatedSprite2D
 var _light: PointLight2D
@@ -122,6 +125,10 @@ func _physics_process(delta: float) -> void:
 	_iframes = maxf(0.0, _iframes - delta)
 	_attack_anim = maxf(0.0, _attack_anim - delta)
 	_stamina_delay = maxf(0.0, _stamina_delay - delta)
+	_dodge_cd = maxf(0.0, _dodge_cd - delta)
+	_combo_timer = maxf(0.0, _combo_timer - delta)
+	if _combo_timer <= 0.0:
+		_combo_stage = 0
 
 	var input_dir := Input.get_vector("move_left", "move_right", "move_up", "move_down")
 	var sprinting: bool = Input.is_action_pressed("sprint") and stamina > 1.0 and input_dir != Vector2.ZERO
@@ -150,6 +157,8 @@ func _physics_process(delta: float) -> void:
 	_update_anim(input_dir)
 	_update_light()
 
+	if Input.is_action_just_pressed("dodge") and not _ui_blocked():
+		_dodge(input_dir)
 	if Input.is_action_pressed("attack") and _attack_cd <= 0.0 and not _ui_blocked():
 		_attack()
 
@@ -204,6 +213,29 @@ func _ui_blocked() -> bool:
 	return world.hud and world.hud.ui_blocking()
 
 
+func _dodge(input_dir: Vector2) -> void:
+	if _dodge_cd > 0.0 or stamina < 15.0:
+		return
+	var dir := input_dir.normalized() if input_dir != Vector2.ZERO else _aim_dir()
+	dir.y *= 0.6
+	stamina -= 15.0
+	_stamina_delay = 0.7
+	_dodge_cd = 0.9
+	_iframes = maxf(_iframes, 0.35)
+	_knock += dir * 300.0
+	FX.dust(get_parent(), position)
+	Game.play_sfx("swing", -10.0, 0.2)
+	_sprite.scale = Vector2(1.1, 0.82)
+	var tw := create_tween()
+	tw.tween_property(_sprite, "scale", Vector2.ONE, 0.25)
+
+
+func _roll_crit(dmg: float) -> Array:
+	if randf() < 0.10:
+		return [dmg * 1.6, true]
+	return [dmg, false]
+
+
 # --------------------------------------------------------------- combat -----
 func weapon_stats() -> Dictionary:
 	if equipped != "" and inventory.get(equipped, 0) > 0:
@@ -238,15 +270,22 @@ func _melee_attack(w: Dictionary) -> void:
 		return
 	stamina = maxf(0.0, stamina - 7.0)
 	_stamina_delay = 0.6
-	_attack_cd = float(w["cooldown"])
+	var combo_mult: float = [1.0, 1.15, 1.5][_combo_stage]
+	var finisher := _combo_stage == 2
+	_attack_cd = float(w["cooldown"]) * (1.5 if finisher else 1.0)
+	_combo_timer = 1.1
 	_play_attack_anim("melee")
 	var aim := _aim_dir()
-	_knock += aim * 46.0  # forward lunge
+	_knock += aim * (60.0 if finisher else 46.0)  # forward lunge
 	var origin := position + aim * 14.0
-	FX.slash(get_parent(), position + aim * 24.0 + Vector2(0, -14), aim.angle())
-	Game.play_sfx("swing", -6.0)
-	var dmg := float(w["dmg"]) * SkillTree.melee_mult()
-	var knockback := float(w.get("knockback", 60)) * SkillTree.knockback_mult()
+	FX.slash(get_parent(), position + aim * 24.0 + Vector2(0, -14), aim.angle(),
+			1.35 if finisher else 1.0)
+	Game.play_sfx("swing", -6.0 if not finisher else -2.0)
+	var dmg := float(w["dmg"]) * SkillTree.melee_mult() * combo_mult
+	var crit_roll := _roll_crit(dmg)
+	dmg = crit_roll[0]
+	var crit: bool = crit_roll[1]
+	var knockback := float(w.get("knockback", 60)) * SkillTree.knockback_mult() * (1.8 if finisher else 1.0)
 	# zombies in arc
 	var hit_zombies := []
 	for z in get_tree().get_nodes_in_group("zombies"):
@@ -258,6 +297,9 @@ func _melee_attack(w: Dictionary) -> void:
 		var count := hit_zombies.size() if SkillTree.has_skill("cleave") else 1
 		for i in mini(count, hit_zombies.size()):
 			hit_zombies[i].hit(dmg, position, knockback)
+			if crit:
+				FX.float_text(get_parent(), hit_zombies[i].position + Vector2(0, -10), "CRIT!", Color(1.0, 0.8, 0.2))
+		_combo_stage = (_combo_stage + 1) % 3
 	# harvest the closest node in the arc
 	var best: Node = null
 	var best_d := 52.0
@@ -280,7 +322,8 @@ func _bow_attack(w: Dictionary) -> void:
 	_play_attack_anim("bow")
 	Game.play_sfx("bow", -4.0)
 	var aim := _aim_dir()
-	var dmg := float(w["dmg"]) * SkillTree.bow_mult()
+	var crit_roll := _roll_crit(float(w["dmg"]) * SkillTree.bow_mult())
+	var dmg: float = crit_roll[0]
 	var angles := [0.0]
 	if SkillTree.has_skill("multishot"):
 		angles = [-0.16, 0.0, 0.16]
@@ -298,8 +341,8 @@ func _staff_attack(w: Dictionary) -> void:
 	_attack_cd = float(w["cooldown"])
 	_play_attack_anim("staff")
 	Game.play_sfx("magic", -6.0)
-	var dmg := float(w["dmg"]) * SkillTree.spell_mult()
-	_spawn_projectile("fire", _aim_dir(), dmg, 0, SkillTree.has_skill("fireball"))
+	var crit_roll := _roll_crit(float(w["dmg"]) * SkillTree.spell_mult())
+	_spawn_projectile("fire", _aim_dir(), crit_roll[0], 0, SkillTree.has_skill("fireball"))
 
 
 func _spawn_projectile(kind: String, dir: Vector2, dmg: float, pierce: int, explode: bool) -> void:

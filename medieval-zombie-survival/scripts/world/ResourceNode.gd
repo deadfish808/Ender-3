@@ -20,6 +20,8 @@ const CONFIG := {
 			"yield": [["stone", 1.0]], "radius": 16.0, "blocks": true},
 	"ruin_wall2": {"texture": "res://assets/props/ruin_wall2.png", "hits": 8, "offset": -16.0,
 			"yield": [["stone", 1.0]], "radius": 16.0, "blocks": true},
+	"city_wall": {"texture": "res://assets/buildables/stone_wall.png", "hits": 25, "offset": -16.0,
+			"yield": [["stone", 1.0]], "radius": 16.0, "blocks": true},
 	"barrel": {"texture": "res://assets/props/barrel.png", "hits": 2, "offset": -13.0,
 			"yield": [["wood", 0.8], ["cloth", 0.4], ["berries", 0.35]], "radius": 7.0, "blocks": true},
 	"crate": {"texture": "res://assets/props/crate.png", "hits": 2, "offset": -11.0,

@@ -140,6 +140,7 @@ func _setup_input() -> void:
 	_key_action("move_left", [KEY_A, KEY_LEFT])
 	_key_action("move_right", [KEY_D, KEY_RIGHT])
 	_key_action("sprint", [KEY_SHIFT])
+	_key_action("dodge", [KEY_SPACE])
 	_key_action("interact", [KEY_E])
 	_key_action("weapon_1", [KEY_1])
 	_key_action("weapon_2", [KEY_2])

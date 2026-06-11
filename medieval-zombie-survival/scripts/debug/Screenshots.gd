@@ -70,7 +70,12 @@ func _process(_delta: float) -> void:
 			player.position = world.tilemap.map_to_local(Vector2i(48, 48))
 		140:
 			_shot("07_town_overview")
-		144:
+		142:
+			player._cam.zoom = Vector2(0.62, 0.62)
+			player.position = world.tilemap.map_to_local(Vector2i(71, 24))
+		152:
+			_shot("08_city_overview")
+		156:
 			get_tree().quit()
 
 

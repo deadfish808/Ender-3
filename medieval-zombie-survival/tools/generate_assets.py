@@ -18,18 +18,18 @@ ASSETS = os.path.join(ROOT, "assets")
 
 OUTLINE = (24, 18, 28, 255)
 
-# ---------------------------------------------------------------- palette ---
-GRASS = [(46, 74, 38), (58, 92, 46), (72, 110, 54), (92, 132, 64)]
-DIRT = [(74, 52, 34), (94, 68, 44), (114, 84, 54), (134, 102, 66)]
-SAND = [(150, 126, 84), (172, 148, 102), (192, 168, 120), (210, 188, 140)]
-WATER = [(28, 52, 86), (36, 66, 106), (46, 82, 128), (90, 130, 168)]
-STONE = [(72, 72, 80), (94, 94, 102), (118, 118, 126), (142, 142, 150)]
-WOOD = [(78, 54, 32), (102, 72, 42), (126, 92, 54), (150, 114, 70)]
-LEAF = [(30, 58, 34), (42, 78, 42), (56, 98, 52), (74, 120, 62)]
-PINE = [(24, 50, 40), (32, 66, 50), (42, 84, 60), (56, 102, 72)]
-SKIN = [(150, 102, 74), (188, 134, 96), (216, 162, 118)]
-ZSKIN = [(74, 96, 56), (98, 122, 70), (122, 146, 88)]
-IRON = [(96, 100, 110), (140, 144, 154), (186, 190, 200)]
+# ------------------------------------------------ palette (muted, gritty) ---
+GRASS = [(42, 53, 35), (52, 65, 42), (63, 78, 49), (76, 92, 57)]
+DIRT = [(60, 47, 36), (76, 60, 45), (92, 74, 55), (108, 88, 66)]
+SAND = [(118, 104, 78), (136, 121, 92), (152, 137, 106), (168, 152, 120)]
+WATER = [(22, 34, 48), (28, 43, 60), (35, 53, 73), (58, 80, 100)]
+STONE = [(56, 56, 62), (74, 74, 81), (94, 94, 102), (116, 116, 124)]
+WOOD = [(60, 46, 33), (78, 60, 43), (96, 76, 54), (116, 94, 67)]
+LEAF = [(26, 40, 28), (35, 52, 35), (45, 65, 43), (57, 80, 52)]
+PINE = [(20, 34, 29), (27, 45, 38), (35, 57, 47), (46, 72, 58)]
+SKIN = [(124, 92, 72), (152, 117, 91), (176, 140, 110)]
+ZSKIN = [(68, 78, 56), (86, 98, 68), (104, 118, 80)]
+IRON = [(82, 86, 94), (116, 120, 128), (152, 156, 164)]
 
 
 def new(w, h):
@@ -90,6 +90,15 @@ def outline(im, color=OUTLINE):
     return out
 
 
+def with_shadow(im, cx, cy, rx, ry, alpha=70):
+    """Composite a soft ground shadow beneath an already-outlined sprite."""
+    base = new(im.width, im.height)
+    disc(base, cx, cy, rx, ry, (12, 10, 18, alpha))
+    disc(base, cx, cy, rx * 0.6, ry * 0.6, (12, 10, 18, min(255, alpha + 35)))
+    base.alpha_composite(im)
+    return base
+
+
 def save(im, rel):
     path = os.path.join(ASSETS, rel)
     os.makedirs(os.path.dirname(path), exist_ok=True)
@@ -113,15 +122,15 @@ def value_noise(x, y, seed, scale=0.35):
     return (n / 3.0 + 1.0) / 2.0
 
 
-def terrain_tile(ramp, seed, tufts=0, tuft_color=None, waves=False):
+def terrain_tile(ramp, seed, tufts=0, tuft_color=None, waves=False, wave_seed=None):
     im = new(TILE_W, TILE_H)
     rng = random.Random(seed)
     for y in range(TILE_H):
         for x in range(TILE_W):
             if not in_diamond(x, y):
                 continue
-            n = value_noise(x, y, seed)
-            n += (rng.random() - 0.5) * 0.22
+            n = value_noise(x, y, seed, scale=0.22)
+            n += (rng.random() - 0.5) * 0.12
             if n < 0.30:
                 c = ramp[0]
             elif n < 0.55:
@@ -132,8 +141,8 @@ def terrain_tile(ramp, seed, tufts=0, tuft_color=None, waves=False):
                 c = ramp[3]
             # bottom edges read darker, top edges catch light
             edge = abs((x + 0.5) / TILE_W * 2 - 1) + abs((y + 0.5) / TILE_H * 2 - 1)
-            if edge > 0.86:
-                c = shade(c, 0.78 if y > TILE_H / 2 else 1.12)
+            if edge > 0.88:
+                c = shade(c, 0.82 if y > TILE_H / 2 else 1.08)
             px(im, x, y, c + (255,))
     for _ in range(tufts):
         tx = rng.randint(14, TILE_W - 14)
@@ -145,17 +154,21 @@ def terrain_tile(ramp, seed, tufts=0, tuft_color=None, waves=False):
             if rng.random() < 0.5:
                 px(im, tx + 1, ty, shade(col + (255,), 0.85))
     if waves:
-        for _ in range(5):
-            wx = rng.randint(10, TILE_W - 18)
-            wy = rng.randint(6, TILE_H - 7)
+        wrng = random.Random(wave_seed if wave_seed is not None else seed)
+        for _ in range(6):
+            wx = wrng.randint(10, TILE_W - 18)
+            wy = wrng.randint(6, TILE_H - 7)
             if in_diamond(wx, wy) and in_diamond(wx + 6, wy):
-                for i in range(rng.randint(4, 7)):
+                for i in range(wrng.randint(4, 7)):
                     px(im, wx + i, wy, WATER[3] + (255,))
+                if wrng.random() < 0.5:
+                    px(im, wx + 1, wy + 1, WATER[2] + (255,))
     return im
 
 
 def build_terrain_atlas():
-    # atlas layout (col,row): see World.gd TILES mapping
+    # atlas layout (col,row): see World.gd TILES mapping.
+    # Water occupies indices 6,7,8 (horizontally adjacent -> tileset animation).
     cells = [
         terrain_tile(GRASS, 1, tufts=7),
         terrain_tile(GRASS, 2, tufts=5),
@@ -163,8 +176,9 @@ def build_terrain_atlas():
         terrain_tile(DIRT, 4),
         terrain_tile(DIRT, 5),
         terrain_tile(SAND, 6),
-        terrain_tile(WATER, 7, waves=True),
-        terrain_tile(WATER, 8, waves=True),
+        terrain_tile(WATER, 7, waves=True, wave_seed=70),
+        terrain_tile(WATER, 7, waves=True, wave_seed=71),
+        terrain_tile(WATER, 7, waves=True, wave_seed=72),
         terrain_tile(STONE, 9),
         terrain_tile(STONE, 10),
     ]
@@ -210,7 +224,7 @@ def tree_oak(seed):
     rect(im, 27, 88, 36, 91, WOOD[1] + (255,))
     px(im, 27, 88, WOOD[2] + (255,))
     draw_canopy(im, 32, 36, 21, LEAF, rng)
-    return outline(im)
+    return with_shadow(outline(im), 32, 90, 14, 4)
 
 
 def tree_pine(seed):
@@ -237,7 +251,7 @@ def tree_pine(seed):
                 if rng.random() < 0.08:
                     c = PINE[3]
                 px(im, x, y, c + (255,))
-    return outline(im)
+    return with_shadow(outline(im), 32, 90, 12, 3.5)
 
 
 def rock(seed, big=True):
@@ -254,7 +268,7 @@ def rock(seed, big=True):
         y = rng.randint(int(h * 0.35), int(h * 0.85))
         px(im, x, y, STONE[0] + (255,))
         px(im, x + 1, y, STONE[0] + (255,))
-    return outline(im)
+    return with_shadow(outline(im), cx, h - 3, w * 0.44, h * 0.16)
 
 
 def berry_bush(with_berries=True, seed=5):
@@ -265,9 +279,9 @@ def berry_bush(with_berries=True, seed=5):
         for _ in range(8):
             x = 20 + rng.randint(-9, 9)
             y = 17 + rng.randint(-6, 5)
-            px(im, x, y, (182, 40, 48, 255))
-            px(im, x + 1, y, (216, 70, 70, 255))
-    return outline(im)
+            px(im, x, y, (146, 38, 42, 255))
+            px(im, x + 1, y, (176, 62, 58, 255))
+    return with_shadow(outline(im), 20, 26, 12, 3)
 
 
 def mushroom_patch(seed=9):
@@ -275,8 +289,8 @@ def mushroom_patch(seed=9):
     rng = random.Random(seed)
     for i, (mx, my, r) in enumerate([(8, 12, 4), (17, 13, 3), (13, 9, 3)]):
         rect(im, mx - 1, my, mx, my + 4, (214, 200, 180, 255))
-        disc(im, mx, my - 1, r, r * 0.6, (160, 58, 44, 255))
-        disc(im, mx - 1, my - 2, r * 0.5, r * 0.35, (196, 84, 64, 255), prob=0.8, rng=rng)
+        disc(im, mx, my - 1, r, r * 0.6, (132, 56, 44, 255))
+        disc(im, mx - 1, my - 2, r * 0.5, r * 0.35, (158, 76, 58, 255), prob=0.8, rng=rng)
         px(im, mx, my - 2, (230, 220, 210, 255))
     return outline(im)
 
@@ -526,148 +540,316 @@ def chest(open_state=False):
 
 
 # -------------------------------------------------------------- characters --
+# Sheet layout (32x48 cells, 9 columns x 6 rows):
+#   rows 0-2 (S/E/N): walk cols 0-5, idle cols 6-7
+#   rows 3-5 (S/E/N): attack anims, 3 frames each:
+#       player: melee cols 0-2, bow cols 3-5, staff cols 6-8
+#       zombie: lunge repeated in all three slots
 DIRS = ["s", "e", "n"]
+BOOT = (52, 40, 30, 255)
+BELT = (60, 44, 30, 255)
+GOLD = (200, 170, 80, 255)
+STRING = (215, 210, 195, 255)
+ARC = (240, 245, 255, 170)
 
 
-def draw_humanoid(im, ox, oy, facing, pose, opts):
-    """Draw a 32x48 character with feet at (ox+16, oy+46).
+def _gait(kind, f):
+    """Returns (ph, bob, lunge) for a pose."""
+    walk = kind == "walk"
+    ph = f * math.pi / 3.0 if walk else 0.0
+    if walk:
+        bob = -1 if f % 3 != 0 else 0
+    elif kind == "idle":
+        bob = 1 if f == 1 else 0
+    else:
+        bob = 0
+    lunge = (0, 3, 1)[f] if kind == "lunge" else 0
+    return ph, bob, lunge
 
-    pose: ('idle',0) ('walk',0..3) ('attack',0..1)
-    opts: dict(skin, hair, tunic, pants, hood, zombie)
-    """
-    skin = opts["skin"]
-    tunic = opts["tunic"]
-    pants = opts["pants"]
-    hair = opts["hair"]
-    zombie = opts.get("zombie", False)
-    cx = ox + 16
-    feet = oy + 46
-    kind, f = pose
-    lift_l = lift_r = 0
-    swing = 0
-    if kind == "walk":
-        lift_l = [0, 2, 0, 0][f]
-        lift_r = [0, 0, 0, 2][f]
-        swing = [0, 1, 0, -1][f]
+
+def _draw_s(im, o, kind, f, mirror_n=False):
+    skin, hair, tunic, pants = o["skin"], o["hair"], o["tunic"], o["pants"]
+    zombie = o.get("zombie", False)
+    ph, bob, lunge = _gait(kind, f)
+    walk = kind == "walk"
+    cx, feet, hip = 16, 45, 36
     hunch = 2 if zombie else 0
-
-    leg_top = feet - 9
-    body_top = leg_top - 13
-    head_top = body_top - 11 + hunch
-
-    def vrect(x0, y0, x1, y1, c):
-        rect(im, x0, y0, x1, y1, c)
-
-    # --- legs ---
-    for side, lift in ((-1, lift_l), (1, lift_r)):
-        lx = cx + (2 if side > 0 else -4)
-        vrect(lx, leg_top, lx + 2, feet - lift, pants[1])
-        vrect(lx + (2 if side > 0 else 0), leg_top, lx + 2, feet - lift, pants[0])
-        # boots
-        vrect(lx, feet - 2 - lift, lx + 2, feet - lift, (52, 40, 30, 255))
-
-    # --- torso / tunic ---
-    bw = 6
-    vrect(cx - bw, body_top, cx + bw - 1, leg_top + 1, tunic[1])
-    vrect(cx + 2, body_top, cx + bw - 1, leg_top + 1, tunic[0])      # right shadow
-    vrect(cx - bw, body_top, cx - bw + 1, leg_top - 3, tunic[2])     # left light
-    # belt
-    vrect(cx - bw, leg_top - 2, cx + bw - 1, leg_top - 1, (60, 44, 30, 255))
-    px(im, cx, leg_top - 2, (200, 170, 80, 255))  # buckle
+    # legs
+    lift_l = max(0, round(2.0 * math.sin(ph))) if walk else 0
+    lift_r = max(0, round(2.0 * math.sin(ph + math.pi))) if walk else 0
+    for lx, lift in ((cx - 4, lift_l), (cx + 1, lift_r)):
+        rect(im, lx, hip, lx + 2, feet - lift, pants[1])
+        rect(im, lx + 2, hip, lx + 2, feet - lift, pants[0])
+        rect(im, lx, feet - 1 - lift, lx + 2, feet - lift, BOOT)
+    # torso
+    t_top = 24 + bob + hunch
+    rect(im, cx - 6, t_top, cx + 5, hip + 1, tunic[1])
+    rect(im, cx + 3, t_top, cx + 5, hip + 1, tunic[0])
+    rect(im, cx - 6, t_top, cx - 5, hip - 2, tunic[2])
+    rect(im, cx - 6, t_top, cx + 5, t_top, tunic[2])
+    rect(im, cx - 6, hip - 2, cx + 5, hip - 1, BELT)
+    px(im, cx, hip - 2, GOLD)
     if zombie:
-        rng = random.Random(f * 7 + (3 if facing == "e" else 5))
-        for _ in range(5):
-            tx = cx + rng.randint(-bw + 1, bw - 2)
-            ty = rng.randint(body_top + 1, leg_top)
-            px(im, tx, ty, shade(tunic[0], 0.55))
-        # exposed wound
-        px(im, cx - 3, body_top + 4, (140, 40, 40, 255))
-        px(im, cx - 2, body_top + 4, (180, 60, 50, 255))
+        rng = random.Random(f * 13 + 5)
+        for _ in range(6):
+            px(im, cx + rng.randint(-5, 4), rng.randint(t_top + 1, hip - 3), shade(tunic[0], 0.55))
+        px(im, cx - 3, t_top + 4, (140, 40, 40, 255))
+        px(im, cx - 2, t_top + 4, (180, 60, 50, 255))
+    # arms
+    a_y = t_top + 1
+    if zombie:
+        ext = 9 + lunge
+        for ax in (cx - 8, cx + 6):
+            rect(im, ax, a_y + 3, ax + 1, a_y + ext, tunic[0])
+            rect(im, ax, a_y + ext + 1, ax + 1, a_y + ext + 2, skin[1])
+    else:
+        sw_l = round(1.5 * math.sin(ph + math.pi)) if walk else 0
+        sw_r = round(1.5 * math.sin(ph)) if walk else 0
+        for ax, sw in ((cx - 8, sw_l), (cx + 6, sw_r)):
+            rect(im, ax, a_y + sw, ax + 1, a_y + 7 + sw, tunic[1])
+            rect(im, ax, a_y + 8 + sw, ax + 1, a_y + 9 + sw, skin[1])
+    # head
+    h_top = t_top - 11
+    rect(im, cx - 4, h_top + 1, cx + 3, h_top + 10, skin[1])
+    rect(im, cx + 2, h_top + 1, cx + 3, h_top + 10, skin[0])
+    rect(im, cx - 4, h_top + 2, cx - 4, h_top + 8, skin[2])
+    rect(im, cx - 4, h_top - 1, cx + 3, h_top + 2, hair[1])
+    rect(im, cx + 1, h_top - 1, cx + 3, h_top + 2, hair[0])
+    px(im, cx - 3, h_top - 1, shade(hair[1], 1.25))
+    rect(im, cx - 4, h_top + 2, cx - 4, h_top + 4, hair[1])
+    rect(im, cx + 3, h_top + 2, cx + 3, h_top + 4, hair[0])
+    if mirror_n:
+        # back view: hair covers the whole head
+        rect(im, cx - 4, h_top - 1, cx + 3, h_top + 7, hair[1])
+        rect(im, cx + 1, h_top - 1, cx + 3, h_top + 7, hair[0])
+        px(im, cx - 3, h_top, shade(hair[1], 1.25))
+        return
+    eye = (205, 45, 45, 255) if zombie else (30, 26, 34, 255)
+    px(im, cx - 3, h_top + 5, eye)
+    px(im, cx + 2, h_top + 5, eye)
+    if zombie:
+        rng = random.Random(9)
+        for _ in range(3):
+            px(im, cx + rng.randint(-3, 2), h_top - 1, (0, 0, 0, 0))
+        rect(im, cx - 1, h_top + 8, cx, h_top + 9, (90, 30, 30, 255))
+    else:
+        px(im, cx - 1, h_top + 8, skin[0])
 
-    # --- arms ---
-    arm_y = body_top + 1
-    if zombie and facing in ("s", "e"):
-        # arms reaching forward/down
-        if facing == "s":
-            for adx in (-bw - 1, bw):
-                vrect(cx + adx, arm_y + 4, cx + adx + 1, arm_y + 13 + swing, tunic[1])
-                vrect(cx + adx, arm_y + 12 + swing, cx + adx + 1, arm_y + 14 + swing, skin[1])
+
+def _draw_e(im, o, kind, f):
+    skin, hair, tunic, pants = o["skin"], o["hair"], o["tunic"], o["pants"]
+    zombie = o.get("zombie", False)
+    ph, bob, lunge = _gait(kind, f)
+    walk = kind == "walk"
+    attack = kind in ("melee", "bow", "staff", "lunge")
+    cx, feet, hip = 16, 45, 36
+    hunch = 2 if zombie else 0
+    sx = lunge + (1 if zombie else 0)
+    # legs, back leg first (darker)
+    for ph_off, leg_c, boot_c in ((math.pi, pants[0], shade(BOOT, 0.8)), (0.0, pants[1], BOOT)):
+        if walk:
+            dx = round(3.2 * math.sin(ph + ph_off))
+            lift = max(0, round(2.0 * math.cos(ph + ph_off)))
         else:
-            vrect(cx + 4, arm_y + 3, cx + 10, arm_y + 4, skin[1])
-            vrect(cx + 3, arm_y + 2, cx + 6, arm_y + 3, tunic[1])
-    else:
-        for side in (-1, 1):
-            ax = cx + (bw if side > 0 else -bw - 2)
-            sw = swing * side
-            if kind == "attack":
-                sw = -3 if side > 0 else 1
-            vrect(ax, arm_y + sw, ax + 1, arm_y + 8 + sw, tunic[1] if not zombie else tunic[0])
-            vrect(ax, arm_y + 9 + sw, ax + 1, arm_y + 11 + sw, skin[1])
-        if kind == "attack" and f == 1 and facing in ("s", "e"):
-            # weapon swipe arm extended
-            wx = cx + (bw + 2 if facing == "e" else 6)
-            wy = arm_y + (2 if facing == "e" else 8)
-            line(im, cx + bw, arm_y + 2, wx + 4, wy + 4, skin[1])
+            dx = -3 if ph_off > 0 else 2
+            lift = 0
+        fx, fy = cx + dx, feet - lift
+        line(im, cx, hip + 1, fx, fy - 1, leg_c, w=2)
+        rect(im, fx - 1, fy - 1, fx + 1, fy, boot_c)
+    t_top = 24 + bob + hunch
+    # far arm behind torso
+    if zombie:
+        line(im, cx + sx - 1, t_top + 2, cx + sx + 6 + lunge, t_top + 7, tunic[0], w=2)
+        px(im, cx + sx + 7 + lunge, t_top + 7, skin[0])
+    elif walk:
+        sw_far = round(2.4 * math.sin(ph + math.pi))
+        line(im, cx + sx, t_top + 2, cx + sx + sw_far, t_top + 9, tunic[0], w=2)
+        px(im, cx + sx + sw_far, t_top + 10, skin[0])
+    # torso
+    rect(im, cx - 4 + sx, t_top, cx + 3 + sx, hip + 1, tunic[1])
+    rect(im, cx - 4 + sx, t_top, cx - 3 + sx, hip - 1, tunic[0])
+    rect(im, cx + 2 + sx, t_top, cx + 3 + sx, hip - 2, tunic[2])
+    rect(im, cx - 4 + sx, hip - 2, cx + 3 + sx, hip - 1, BELT)
+    if zombie:
+        rng = random.Random(f * 11 + 3)
+        for _ in range(5):
+            px(im, cx + sx + rng.randint(-3, 2), rng.randint(t_top + 1, hip - 3), shade(tunic[0], 0.55))
+    # head profile
+    h_top = t_top - 11
+    hx = cx - 3 + sx + (2 if zombie else 0)
+    rect(im, hx, h_top + 1, hx + 7, h_top + 10, skin[1])
+    rect(im, hx + 1, h_top + 10, hx + 6, h_top + 10, skin[0])
+    px(im, hx + 8, h_top + 6, skin[1])  # nose
+    px(im, hx + 8, h_top + 5, skin[2])
+    rect(im, hx - 1, h_top - 1, hx + 6, h_top + 2, hair[1])
+    rect(im, hx - 1, h_top + 2, hx + 2, h_top + 8, hair[1])
+    rect(im, hx - 1, h_top + 4, hx, h_top + 9, hair[0])
+    px(im, hx + 1, h_top - 1, shade(hair[1], 1.25))
+    eye = (205, 45, 45, 255) if zombie else (30, 26, 34, 255)
+    px(im, hx + 6, h_top + 5, eye)
+    if zombie:
+        px(im, hx + 6, h_top + 9, (90, 30, 30, 255))
+    # near arm
+    if zombie:
+        line(im, cx + sx, t_top + 3, cx + sx + 8 + lunge, t_top + 6, tunic[1], w=2)
+        rect(im, cx + sx + 8 + lunge, t_top + 5, cx + sx + 9 + lunge, t_top + 7, skin[1])
+    elif not attack:
+        sw = round(2.6 * math.sin(ph)) if walk else 0
+        line(im, cx + 1 + sx, t_top + 2, cx + 1 + sx + sw, t_top + 10, tunic[1], w=2)
+        rect(im, cx + sx + sw, t_top + 9, cx + 1 + sx + sw, t_top + 11, skin[1])
 
-    # --- head ---
-    hw = 4
-    vrect(cx - hw, head_top, cx + hw - 1, head_top + 8, skin[1])
-    vrect(cx + 2, head_top, cx + hw - 1, head_top + 8, skin[0])
-    vrect(cx - hw, head_top + 1, cx - hw + 1, head_top + 6, skin[2])
-    if facing == "n":
-        # back of head: hair covers
-        vrect(cx - hw, head_top, cx + hw - 1, head_top + 5, hair[1])
-        vrect(cx + 1, head_top, cx + hw - 1, head_top + 5, hair[0])
+
+# ------------------------------------------------------ weapon overlays -----
+def _arm_to(im, o, sx, sy, hx, hy):
+    line(im, sx, sy, hx, hy, o["tunic"][1], w=2)
+    rect(im, hx - 1, hy - 1, hx, hy, o["skin"][1])
+
+
+def _sword(im, o, facing, f, bob):
+    if facing == "s":
+        poses = [((24, 21), (29, 12)), ((22, 30), (9, 39)), ((13, 36), (6, 41))]
+        shoulder = (22, 26)
+        arc = ((27, 16), (25, 22), (20, 28), (14, 33))
+    elif facing == "e":
+        poses = [((12, 24), (6, 16)), ((24, 27), (31, 25)), ((23, 31), (29, 35))]
+        shoulder = (17, 27)
+        arc = ((19, 19), (24, 20), (28, 22))
     else:
-        # hair top
-        vrect(cx - hw, head_top - 1, cx + hw - 1, head_top + 1, hair[1])
-        vrect(cx - hw, head_top - 1, cx - 1, head_top + 2, hair[1])
-        vrect(cx + 2, head_top - 1, cx + hw - 1, head_top + 1, hair[0])
-        eye = (200, 40, 40, 255) if zombie else (30, 26, 34, 255)
-        if facing == "s":
-            px(im, cx - 2, head_top + 4, eye)
-            px(im, cx + 1, head_top + 4, eye)
-            if zombie:
-                px(im, cx - 1, head_top + 7, (90, 30, 30, 255))  # gaping mouth
-        else:  # e profile
-            px(im, cx + 2, head_top + 4, eye)
-            px(im, cx + hw - 1, head_top + 5, shade(skin[0], 0.9))
-    if opts.get("hood") and facing != "n":
-        vrect(cx - hw - 1, head_top - 2, cx + hw, head_top + 2, tunic[1])
-        vrect(cx - hw - 1, head_top + 2, cx - hw, head_top + 6, tunic[0])
-        vrect(cx + hw - 1, head_top + 2, cx + hw, head_top + 6, tunic[0])
+        poses = [((8, 21), (3, 13)), ((16, 12), (24, 8)), ((24, 18), (29, 13))]
+        shoulder = (11, 26)
+        arc = ((6, 14), (13, 9), (21, 8))
+    hand, tip = poses[f]
+    hand = (hand[0], hand[1] + bob)
+    tip = (tip[0], tip[1] + bob)
+    _arm_to(im, o, shoulder[0], shoulder[1] + bob, hand[0], hand[1])
+    line(im, hand[0], hand[1], tip[0], tip[1], IRON[1] + (255,), w=2)
+    line(im, hand[0], hand[1] - 1, tip[0], tip[1] - 1, IRON[2] + (255,))
+    px(im, hand[0], hand[1], GOLD)
+    if f == 1:
+        for ax, ay in arc:
+            px(im, ax, ay + bob, ARC)
+
+
+def _bow(im, o, facing, f, bob):
+    if facing == "e":
+        bx, by = 22, 27 + bob
+        for i in range(-10, 11):
+            ang = i / 10 * 1.15
+            x = bx + round(3.5 * math.cos(ang))
+            y = by + round(8 * math.sin(ang))
+            px(im, x, y, WOOD[2] + (255,))
+            px(im, x - 1, y, WOOD[1] + (255,))
+        ex = bx + round(3.5 * math.cos(1.15))
+        ey1, ey2 = by - round(8 * math.sin(1.15)), by + round(8 * math.sin(1.15))
+        if f == 0:
+            line(im, ex, ey1, 14, by, STRING)
+            line(im, ex, ey2, 14, by, STRING)
+            line(im, 14, by, 25, by, WOOD[3] + (255,))
+            px(im, 26, by, IRON[2] + (255,))
+            _arm_to(im, o, 16, 26 + bob, 14, by)
+        else:
+            line(im, ex, ey1, ex, ey2, STRING)
+            _arm_to(im, o, 16, 26 + bob, 20, by)
+            if f == 1:
+                px(im, 27, by, ARC)
+                px(im, 29, by, ARC)
+    else:
+        ydir = 1 if facing == "s" else -1
+        by = (32 + bob) if facing == "s" else (19 + bob)
+        for x in range(8, 25):
+            y = by + ydir * round(3.0 * math.cos((x - 16) / 8.0 * 1.25))
+            px(im, x, y, WOOD[2] + (255,))
+            px(im, x, y - ydir, WOOD[1] + (255,))
+        if f == 0:
+            mid = by - ydir * 4
+            line(im, 8, by + ydir, 16, mid, STRING)
+            line(im, 24, by + ydir, 16, mid, STRING)
+            line(im, 16, mid, 16, by + ydir * 3, WOOD[3] + (255,))
+            px(im, 16, by + ydir * 4, IRON[2] + (255,))
+        else:
+            line(im, 8, by + ydir, 24, by + ydir, STRING)
+            if f == 1:
+                px(im, 16, by + ydir * 5, ARC)
+                px(im, 16, by + ydir * 7, ARC)
+
+
+def _staff(im, o, facing, f, bob):
+    orb = (110, 160, 235, 255)
+    if facing == "e":
+        cfgs = [((19, 38), (23, 18)), ((17, 36), (28, 20)), ((19, 38), (24, 20))]
+        shoulder = (17, 27)
+    elif facing == "s":
+        cfgs = [((24, 40), (24, 16)), ((23, 42), (21, 20)), ((24, 40), (24, 18))]
+        shoulder = (22, 27)
+    else:
+        cfgs = [((8, 40), (8, 16)), ((9, 42), (11, 20)), ((8, 40), (8, 18))]
+        shoulder = (11, 27)
+    base, top = cfgs[f]
+    line(im, base[0], base[1] + bob, top[0], top[1] + bob, WOOD[2] + (255,), w=2)
+    line(im, base[0] + 1, base[1] + bob, top[0] + 1, top[1] + bob, WOOD[0] + (255,))
+    mid = ((base[0] + top[0]) // 2, (base[1] + top[1]) // 2 + bob)
+    _arm_to(im, o, shoulder[0], shoulder[1] + bob, mid[0], mid[1])
+    disc(im, top[0], top[1] + bob - 2, 2.4, 2.4, orb)
+    px(im, top[0] - 1, top[1] + bob - 3, (235, 245, 255, 255))
+    if f == 1:
+        for gx, gy in ((4, 0), (-4, -1), (0, 4), (3, -4), (-3, 3)):
+            px(im, top[0] + gx, top[1] + bob - 2 + gy, (170, 200, 255, 210))
+
+
+def draw_char(im, facing, kind, f, o):
+    weapon = {"melee": _sword, "bow": _bow, "staff": _staff}.get(kind)
+    _, bob, _ = _gait(kind, f)
+    pre = weapon is not None and facing == "n" and kind in ("bow", "staff")
+    if pre:
+        weapon(im, o, facing, f, bob)
+    if facing == "e":
+        _draw_e(im, o, kind, f)
+    else:
+        _draw_s(im, o, kind, f, mirror_n=(facing == "n"))
+    if weapon is not None and not pre:
+        weapon(im, o, facing, f, bob)
+
+
+def render_cell(facing, kind, f, opts):
+    im = new(32, 48)
+    draw_char(im, facing, kind, f, opts)
+    out = outline(im)
+    base = new(32, 48)
+    disc(base, 16, 45, 8, 2.6, (12, 10, 18, 80))
+    base.alpha_composite(out)
+    return base
 
 
 def char_sheet(opts):
-    """Rows: 0..2 walk S/E/N (4 frames), 3..5 attack S/E/N (2 frames)."""
-    fw, fh = 32, 48
-    sheet = new(fw * 4, fh * 6)
+    fw, fh, cols = 32, 48, 9
+    sheet = new(fw * cols, fh * 6)
     for row, facing in enumerate(DIRS):
-        for f in range(4):
-            cell = new(fw, fh)
-            draw_humanoid(cell, 0, 0, facing, ("walk", f), opts)
-            sheet.paste(outline(cell), (f * fw, row * fh))
-    for row, facing in enumerate(DIRS):
+        for f in range(6):
+            sheet.paste(render_cell(facing, "walk", f, opts), (f * fw, row * fh))
         for f in range(2):
-            cell = new(fw, fh)
-            draw_humanoid(cell, 0, 0, facing, ("attack", f), opts)
-            sheet.paste(outline(cell), (f * fw, (row + 3) * fh))
+            sheet.paste(render_cell(facing, "idle", f, opts), ((6 + f) * fw, row * fh))
+    attack_kinds = ["lunge", "lunge", "lunge"] if opts.get("zombie") else ["melee", "bow", "staff"]
+    for row, facing in enumerate(DIRS):
+        for ki, kind in enumerate(attack_kinds):
+            for f in range(3):
+                sheet.paste(render_cell(facing, kind, f, opts), ((ki * 3 + f) * fw, (row + 3) * fh))
     return sheet
 
 
+# weathered leather jerkin + dark hood tones: survivor, not hero
 PLAYER_OPTS = dict(
     skin=[s + (255,) for s in SKIN],
-    hair=[(54, 38, 26, 255), (84, 60, 38, 255)],
-    tunic=[(36, 56, 88, 255), (52, 78, 116, 255), (74, 102, 142, 255)],
-    pants=[(58, 46, 36, 255), (84, 68, 52, 255)],
+    hair=[(44, 32, 24, 255), (66, 48, 34, 255)],
+    tunic=[(50, 41, 33, 255), (68, 56, 44, 255), (86, 72, 56, 255)],
+    pants=[(42, 38, 36, 255), (58, 52, 48, 255)],
     hood=False,
 )
 
 ZOMBIE_OPTS = dict(
     skin=[s + (255,) for s in ZSKIN],
-    hair=[(40, 46, 32, 255), (58, 64, 44, 255)],
-    tunic=[(56, 48, 44, 255), (78, 66, 58, 255), (98, 86, 74, 255)],
-    pants=[(48, 42, 36, 255), (66, 58, 48, 255)],
+    hair=[(36, 40, 30, 255), (50, 55, 40, 255)],
+    tunic=[(46, 41, 38, 255), (62, 55, 49, 255), (78, 70, 61, 255)],
+    pants=[(40, 36, 32, 255), (54, 48, 42, 255)],
     zombie=True,
 )
 
@@ -735,15 +917,15 @@ def make_item_icons():
 
     im = icon_base()  # berries
     for bx, by in [(6, 10), (11, 9), (8, 13)]:
-        disc(im, bx, by, 2.4, 2.4, (182, 40, 48, 255))
-        px(im, bx - 1, by - 1, (226, 90, 90, 255))
+        disc(im, bx, by, 2.4, 2.4, (146, 38, 42, 255))
+        px(im, bx - 1, by - 1, (186, 78, 72, 255))
     line(im, 9, 3, 9, 7, GRASS[1] + (255,))
     line(im, 9, 4, 13, 3, GRASS[2] + (255,))
     icons["berries"] = im
 
     im = icon_base()  # mushroom
     rect(im, 8, 9, 10, 14, (214, 200, 180, 255))
-    disc(im, 9, 8, 5.4, 3.4, (160, 58, 44, 255))
+    disc(im, 9, 8, 5.4, 3.4, (132, 56, 44, 255))
     px(im, 7, 6, (230, 220, 210, 255))
     px(im, 11, 7, (230, 220, 210, 255))
     icons["mushroom"] = im
@@ -981,7 +1163,18 @@ def fx_assets():
             px(im, x, y, (255, 255, 255, v))
     save(im, "fx/light.png")
 
-    # ghost marker for build mode handled via modulate; arrow done above
+    # vignette overlay (stretched fullscreen by the HUD)
+    size = 320
+    im = new(size, int(size * 9 / 16))
+    h = im.height
+    for y in range(h):
+        for x in range(size):
+            dx = (x - size / 2) / (size / 2)
+            dy = (y - h / 2) / (h / 2)
+            d = (dx * dx + dy * dy) ** 0.5
+            a = int(150 * max(0.0, d - 0.62) / 0.75)
+            px(im, x, y, (8, 6, 12, min(a, 150)))
+    save(im, "fx/vignette.png")
 
 
 def project_icon():
@@ -1003,7 +1196,7 @@ def project_icon():
             px(im, x, y, GRASS[(x * 7 + y * 13) % 3] + (255,))
     # zombie (big)
     big = new(32, 48)
-    draw_humanoid(big, 0, 0, "s", ("walk", 1), ZOMBIE_OPTS)
+    draw_char(big, "s", "walk", 1, ZOMBIE_OPTS)
     big = outline(big).resize((64, 96), Image.NEAREST)
     im.alpha_composite(big, (32, 18))
     save(im, "../icon.png")

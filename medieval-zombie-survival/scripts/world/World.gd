@@ -4,12 +4,12 @@ extends Node2D
 const MAP_SIZE := 96
 const TILE := Vector2i(64, 32)
 
-# terrain atlas indices (5 columns)
+# terrain atlas indices (5 columns); water is one animated tile (frames 6-8)
 const T_GRASS := [0, 1, 2]
 const T_DIRT := [3, 4]
 const T_SAND := 5
-const T_WATER := [6, 7]
-const T_STONE := [8, 9]
+const T_WATER := 6
+const T_STONE := [9, 10]
 
 const ZOMBIE_CAP := 50
 
@@ -82,10 +82,14 @@ func _build_tilemap() -> void:
 	src.texture = load("res://assets/tiles/terrain_atlas.png")
 	src.texture_region_size = TILE
 	ts.add_source(src, 0)
-	for i in 10:
+	for i in [0, 1, 2, 3, 4, 5, 6, 9, 10]:  # 7, 8 are water animation frames
 		var coords := Vector2i(i % 5, i / 5)
 		src.create_tile(coords)
-		if i in T_WATER:
+		if i == T_WATER:
+			src.set_tile_animation_columns(coords, 0)
+			src.set_tile_animation_frames_count(coords, 3)
+			for f in 3:
+				src.set_tile_animation_frame_duration(coords, f, 0.5)
 			var td := src.get_tile_data(coords, 0)
 			td.add_collision_polygon(0)
 			td.set_collision_polygon_points(0, 0, PackedVector2Array([
@@ -117,7 +121,7 @@ func _generate_terrain() -> void:
 				e -= (6 - border) * 0.13
 			var idx: int
 			if e < -0.38:
-				idx = T_WATER[absi(x * 7 + y * 13) % 2]
+				idx = T_WATER
 				walkable[tile] = false
 			elif e < -0.30:
 				idx = T_SAND
@@ -316,12 +320,12 @@ func station_nearby(tag: String) -> bool:
 # ------------------------------------------------------------- ambient ------
 func _update_ambient() -> void:
 	var dark := Game.darkness()
-	var day_col := Color(1, 1, 1)
-	var night_col := Color(0.30, 0.33, 0.52)
+	var day_col := Color(0.97, 0.95, 0.9)
+	var night_col := Color(0.21, 0.24, 0.38)
 	var c := day_col.lerp(night_col, dark)
-	# warm dusk/dawn tint
-	var warm := clampf(1.0 - absf(dark - 0.4) / 0.4, 0.0, 1.0) * 0.35
-	c = c.lerp(Color(1.0, 0.82, 0.62), warm)
+	# muted dusk/dawn tint
+	var warm := clampf(1.0 - absf(dark - 0.4) / 0.4, 0.0, 1.0) * 0.3
+	c = c.lerp(Color(0.92, 0.7, 0.5), warm)
 	canvas_mod.color = c
 
 

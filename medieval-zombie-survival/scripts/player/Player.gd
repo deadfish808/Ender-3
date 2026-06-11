@@ -25,9 +25,12 @@ var _iframes := 0.0
 var _attack_anim := 0.0
 var _stamina_delay := 0.0
 var _knock := Vector2.ZERO
+var _motion := Vector2.ZERO
+var _dust_timer := 0.0
 
 var _sprite: AnimatedSprite2D
 var _light: PointLight2D
+var _cam: Camera2D
 
 
 func _ready() -> void:
@@ -41,12 +44,12 @@ func _ready() -> void:
 	shape.position = Vector2(0, -4)
 	add_child(shape)
 	_build_sprite()
-	var cam := Camera2D.new()
-	cam.zoom = Vector2(1.6, 1.6)
-	cam.position_smoothing_enabled = true
-	cam.position_smoothing_speed = 8.0
-	add_child(cam)
-	cam.make_current()
+	_cam = Camera2D.new()
+	_cam.zoom = Vector2(2.0, 2.0)
+	_cam.position_smoothing_enabled = true
+	_cam.position_smoothing_speed = 8.0
+	add_child(_cam)
+	_cam.make_current()
 	_light = PointLight2D.new()
 	_light.texture = load("res://assets/fx/light.png")
 	_light.color = Color(1.0, 0.85, 0.6)
@@ -70,7 +73,10 @@ func _build_sprite() -> void:
 	_sprite.play("idle_s")
 
 
-## Shared by Player and Zombie: sheet rows 0-2 walk S/E/N, rows 3-5 attack.
+## Shared by Player and Zombie.
+## Sheet layout (32x48 cells, 9 cols x 6 rows):
+##   rows 0-2 (S/E/N): walk frames 0-5, idle frames 6-7
+##   rows 3-5 (S/E/N): attack_melee 0-2, attack_bow 3-5, attack_staff 6-8
 static func build_char_frames(tex: Texture2D) -> SpriteFrames:
 	var fw := 32
 	var fh := 48
@@ -80,28 +86,31 @@ static func build_char_frames(tex: Texture2D) -> SpriteFrames:
 	for row in 3:
 		var d: String = dirs[row]
 		frames.add_animation("walk_" + d)
-		frames.set_animation_speed("walk_" + d, 9.0)
+		frames.set_animation_speed("walk_" + d, 10.0)
 		frames.set_animation_loop("walk_" + d, true)
-		for f in 4:
-			var at := AtlasTexture.new()
-			at.atlas = tex
-			at.region = Rect2(f * fw, row * fh, fw, fh)
-			frames.add_frame("walk_" + d, at)
+		for f in 6:
+			frames.add_frame("walk_" + d, _cell(tex, f, row, fw, fh))
 		frames.add_animation("idle_" + d)
+		frames.set_animation_speed("idle_" + d, 2.4)
 		frames.set_animation_loop("idle_" + d, true)
-		var idle := AtlasTexture.new()
-		idle.atlas = tex
-		idle.region = Rect2(0, row * fh, fw, fh)
-		frames.add_frame("idle_" + d, idle)
-		frames.add_animation("attack_" + d)
-		frames.set_animation_speed("attack_" + d, 12.0)
-		frames.set_animation_loop("attack_" + d, false)
 		for f in 2:
-			var at2 := AtlasTexture.new()
-			at2.atlas = tex
-			at2.region = Rect2(f * fw, (row + 3) * fh, fw, fh)
-			frames.add_frame("attack_" + d, at2)
+			frames.add_frame("idle_" + d, _cell(tex, 6 + f, row, fw, fh))
+		for k in 3:
+			var kind: String = ["melee", "bow", "staff"][k]
+			var anim := "attack_%s_%s" % [kind, d]
+			frames.add_animation(anim)
+			frames.set_animation_speed(anim, 18.0)
+			frames.set_animation_loop(anim, false)
+			for f in 3:
+				frames.add_frame(anim, _cell(tex, k * 3 + f, row + 3, fw, fh))
 	return frames
+
+
+static func _cell(tex: Texture2D, col: int, row: int, fw: int, fh: int) -> AtlasTexture:
+	var at := AtlasTexture.new()
+	at.atlas = tex
+	at.region = Rect2(col * fw, row * fh, fw, fh)
+	return at
 
 
 # ------------------------------------------------------------ main loop -----
@@ -119,13 +128,21 @@ func _physics_process(delta: float) -> void:
 	var speed := SPRINT_SPEED if sprinting else WALK_SPEED
 	var move := input_dir.normalized() if input_dir != Vector2.ZERO else Vector2.ZERO
 	move.y *= 0.6  # isometric foreshortening
-	velocity = move * speed + _knock
+	# smooth acceleration / deceleration
+	_motion = _motion.lerp(move * speed, 1.0 - exp(-10.0 * delta))
+	if _motion.length() < 2.0 and move == Vector2.ZERO:
+		_motion = Vector2.ZERO
+	velocity = _motion + _knock
 	_knock = _knock.move_toward(Vector2.ZERO, delta * 600.0)
 	move_and_slide()
 
 	if sprinting:
 		stamina = maxf(0.0, stamina - 12.0 * delta)
 		_stamina_delay = 0.8
+		_dust_timer -= delta
+		if _dust_timer <= 0.0:
+			_dust_timer = 0.22
+			FX.dust(get_parent(), position)
 	elif _stamina_delay <= 0.0:
 		stamina = minf(100.0, stamina + 15.0 * delta)
 
@@ -155,12 +172,14 @@ func _update_light() -> void:
 func _update_anim(input_dir: Vector2) -> void:
 	if _attack_anim > 0.0:
 		return
+	var moving := _motion.length() > 8.0
 	var aim := _aim_dir()
-	var dir_source := input_dir if input_dir != Vector2.ZERO else aim
+	var dir_source := input_dir if input_dir != Vector2.ZERO else (_motion if moving else aim)
 	facing = _dir_name(dir_source)
 	var anim_dir := "e" if facing == "w" else facing
 	_sprite.flip_h = facing == "w"
-	var anim := ("walk_" if input_dir != Vector2.ZERO else "idle_") + anim_dir
+	var anim := ("walk_" if moving else "idle_") + anim_dir
+	_sprite.speed_scale = clampf(_motion.length() / WALK_SPEED, 0.7, 1.7) if moving else 1.0
 	if _sprite.animation != anim:
 		_sprite.play(anim)
 
@@ -204,13 +223,14 @@ func _attack() -> void:
 			_staff_attack(w)
 
 
-func _play_attack_anim() -> void:
+func _play_attack_anim(kind: String) -> void:
 	var aim := _aim_dir()
 	facing = _dir_name(aim)
 	var anim_dir := "e" if facing == "w" else facing
 	_sprite.flip_h = facing == "w"
-	_sprite.play("attack_" + anim_dir)
-	_attack_anim = 0.22
+	_sprite.speed_scale = 1.0
+	_sprite.play("attack_%s_%s" % [kind, anim_dir])
+	_attack_anim = 0.18
 
 
 func _melee_attack(w: Dictionary) -> void:
@@ -219,8 +239,9 @@ func _melee_attack(w: Dictionary) -> void:
 	stamina = maxf(0.0, stamina - 7.0)
 	_stamina_delay = 0.6
 	_attack_cd = float(w["cooldown"])
-	_play_attack_anim()
+	_play_attack_anim("melee")
 	var aim := _aim_dir()
+	_knock += aim * 46.0  # forward lunge
 	var origin := position + aim * 14.0
 	FX.slash(get_parent(), position + aim * 24.0 + Vector2(0, -14), aim.angle())
 	Game.play_sfx("swing", -6.0)
@@ -256,7 +277,7 @@ func _bow_attack(w: Dictionary) -> void:
 		return
 	remove_item("arrow", 1)
 	_attack_cd = float(w["cooldown"]) * SkillTree.bow_cooldown_mult()
-	_play_attack_anim()
+	_play_attack_anim("bow")
 	Game.play_sfx("bow", -4.0)
 	var aim := _aim_dir()
 	var dmg := float(w["dmg"]) * SkillTree.bow_mult()
@@ -275,7 +296,7 @@ func _staff_attack(w: Dictionary) -> void:
 		return
 	mana -= cost
 	_attack_cd = float(w["cooldown"])
-	_play_attack_anim()
+	_play_attack_anim("staff")
 	Game.play_sfx("magic", -6.0)
 	var dmg := float(w["dmg"]) * SkillTree.spell_mult()
 	_spawn_projectile("fire", _aim_dir(), dmg, 0, SkillTree.has_skill("fireball"))
@@ -307,6 +328,7 @@ func take_damage(amount: float, from_pos: Vector2) -> void:
 		return
 	_iframes = 0.6
 	_knock = (position - from_pos).normalized() * 140.0
+	shake_camera(3.5)
 	Game.play_sfx("hurt")
 	_apply_damage(amount * SkillTree.damage_taken_mult(), false)
 	_sprite.modulate = Color(1, 0.4, 0.4)
@@ -421,6 +443,15 @@ func max_hp() -> float:
 
 func max_mana() -> float:
 	return 50.0 + SkillTree.bonus_mana()
+
+
+func shake_camera(amount := 3.0) -> void:
+	var tw := create_tween()
+	for i in 4:
+		var falloff := amount * (1.0 - i / 4.0)
+		tw.tween_property(_cam, "offset",
+				Vector2(randf_range(-falloff, falloff), randf_range(-falloff, falloff)), 0.04)
+	tw.tween_property(_cam, "offset", Vector2.ZERO, 0.05)
 
 
 func on_skills_changed() -> void:

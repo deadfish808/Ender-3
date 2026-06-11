@@ -28,6 +28,14 @@ func _ready() -> void:
 	_root.set_anchors_preset(Control.PRESET_FULL_RECT)
 	_root.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(_root)
+	var vignette := TextureRect.new()
+	vignette.texture = load("res://assets/fx/vignette.png")
+	vignette.set_anchors_preset(Control.PRESET_FULL_RECT)
+	vignette.stretch_mode = TextureRect.STRETCH_SCALE
+	vignette.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	vignette.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
+	vignette.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_root.add_child(vignette)
 	_build_stats()
 	_build_clock()
 	_build_weapon_slot()

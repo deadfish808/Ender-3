@@ -24,6 +24,10 @@ var _aggro := false
 var _aggro_memory := 0.0
 var _think := 0.0
 var _wander_dir := Vector2.ZERO
+var _move_dir := Vector2.ZERO
+var _separation := Vector2.ZERO
+var _anim_lock := 0.0
+var _base_scale := 1.0
 var _attack_cd := 0.0
 var _bash_cd := 0.0
 var _slow_mult := 1.0
@@ -62,7 +66,8 @@ func _ready() -> void:
 	_sprite.sprite_frames = player_script.build_char_frames(tex)
 	_sprite.offset = Vector2(0, -22)
 	_sprite.modulate = cfg["tint"]
-	_sprite.scale = Vector2.ONE * cfg["scale"]
+	_base_scale = cfg["scale"]
+	_sprite.scale = Vector2.ONE * _base_scale
 	_sprite.animation = "walk_s"
 	add_child(_sprite)
 	_sprite.play("walk_s")
@@ -76,6 +81,7 @@ func _ready() -> void:
 func _physics_process(delta: float) -> void:
 	_attack_cd = maxf(0.0, _attack_cd - delta)
 	_bash_cd = maxf(0.0, _bash_cd - delta)
+	_anim_lock = maxf(0.0, _anim_lock - delta)
 	if _slow_time > 0.0:
 		_slow_time -= delta
 		if _slow_time <= 0.0:
@@ -87,11 +93,15 @@ func _physics_process(delta: float) -> void:
 		_think_tick()
 
 	var player = Game.player
-	var move := Vector2.ZERO
+	var desired := Vector2.ZERO
 	if _aggro and player and is_instance_valid(player) and not player.dead:
-		move = (player.position - position).normalized()
+		desired = (player.position - position).normalized()
 	else:
-		move = _wander_dir
+		desired = _wander_dir
+	desired += _separation
+	# smooth steering: zombies turn rather than snap
+	_move_dir = _move_dir.lerp(desired, 1.0 - exp(-7.0 * delta))
+	var move := _move_dir
 	move.y *= 0.6
 	velocity = move * speed * _slow_mult
 	move_and_slide()
@@ -100,6 +110,7 @@ func _physics_process(delta: float) -> void:
 	if _aggro and player and is_instance_valid(player) and not player.dead:
 		if position.distance_to(player.position) < 26.0 and _attack_cd <= 0.0:
 			_attack_cd = 1.1
+			_play_lunge((player.position - position).normalized())
 			player.take_damage(dmg, position)
 		elif _bash_cd <= 0.0:
 			_bash_structures()
@@ -112,6 +123,7 @@ func _think_tick() -> void:
 		if randf() < 0.15:
 			_wander_dir = Vector2.from_angle(randf() * TAU) if randf() < 0.7 else Vector2.ZERO
 		return
+	_separation = _compute_separation()
 	var dist := position.distance_to(player.position)
 	var aggro_range := 150.0
 	if Game.is_night():
@@ -129,18 +141,43 @@ func _think_tick() -> void:
 		_wander_dir = Vector2.from_angle(randf() * TAU) if randf() < 0.7 else Vector2.ZERO
 
 
+func _compute_separation() -> Vector2:
+	var push := Vector2.ZERO
+	for z in get_tree().get_nodes_in_group("zombies"):
+		if z == self:
+			continue
+		var d: float = position.distance_to(z.position)
+		if d < 18.0 and d > 0.01:
+			push += (position - z.position) / d * (1.0 - d / 18.0)
+	return push * 0.8
+
+
+func _play_lunge(dir: Vector2) -> void:
+	facing = "s"
+	if absf(dir.x) > absf(dir.y) * 1.2:
+		facing = "e" if dir.x > 0 else "w"
+	elif dir.y < 0:
+		facing = "n"
+	_sprite.flip_h = facing == "w"
+	_sprite.play("attack_melee_" + ("e" if facing == "w" else facing))
+	_anim_lock = 0.25
+
+
 func _bash_structures() -> void:
 	for i in get_slide_collision_count():
 		var col := get_slide_collision(i)
 		var node := col.get_collider()
 		if node and node.is_in_group("structures"):
 			_bash_cd = 1.0
+			_play_lunge((node.position - position).normalized())
 			node.damage(structure_dmg)
 			return
 
 
 func _update_anim(move: Vector2) -> void:
-	if move == Vector2.ZERO:
+	if _anim_lock > 0.0:
+		return
+	if move.length() < 4.0:
 		if String(_sprite.animation).begins_with("walk_"):
 			_sprite.play("idle_" + ("e" if facing == "w" else facing))
 		return
@@ -167,8 +204,11 @@ func hit(amount: float, from_pos: Vector2, knockback: float) -> void:
 	if knockback > 0.0:
 		position += (position - from_pos).normalized() * knockback * 0.12
 	_sprite.modulate = Color(1.6, 1.2, 1.2)
+	_sprite.scale = Vector2.ONE * _base_scale * 1.12
 	var tw := create_tween()
+	tw.set_parallel(true)
 	tw.tween_property(_sprite, "modulate", TYPES[type]["tint"] if _slow_time <= 0.0 else Color(0.6, 0.8, 1.4), 0.18)
+	tw.tween_property(_sprite, "scale", Vector2.ONE * _base_scale, 0.15)
 	if hp <= 0.0:
 		_die()
 

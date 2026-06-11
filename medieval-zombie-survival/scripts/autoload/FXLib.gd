@@ -69,6 +69,26 @@ func float_text(parent: Node, pos: Vector2, text: String, color := Color.WHITE) 
 	tw.chain().tween_callback(label.queue_free)
 
 
+## Small footstep dust puff (sprinting).
+func dust(parent: Node, pos: Vector2) -> void:
+	var p := CPUParticles2D.new()
+	p.position = pos
+	p.amount = 4
+	p.lifetime = 0.4
+	p.one_shot = true
+	p.emitting = true
+	p.direction = Vector2(0, -1)
+	p.spread = 70.0
+	p.initial_velocity_min = 6.0
+	p.initial_velocity_max = 16.0
+	p.gravity = Vector2(0, -8)
+	p.scale_amount_min = 1.0
+	p.scale_amount_max = 2.0
+	p.color = Color(0.76, 0.71, 0.6, 0.5)
+	parent.add_child(p)
+	get_tree().create_timer(0.7).timeout.connect(p.queue_free)
+
+
 ## Expanding ring used by Frost Nova.
 func ring(parent: Node, pos: Vector2, radius: float, color: Color) -> void:
 	var ring_node := FXRing.new()

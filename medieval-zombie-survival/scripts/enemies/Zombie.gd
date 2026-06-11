@@ -69,9 +69,9 @@ func _ready() -> void:
 	var player_script := preload("res://scripts/player/Player.gd")
 	_sprite = AnimatedSprite2D.new()
 	_sprite.sprite_frames = player_script.build_char_frames(tex)
-	_sprite.offset = Vector2(0, -22)
+	_sprite.offset = Vector2(0, -44)
 	_sprite.modulate = cfg["tint"]
-	_base_scale = cfg["scale"]
+	_base_scale = cfg["scale"] * 0.5  # textures are 2x resolution, rendered at half scale for finer pixels
 	_sprite.scale = Vector2.ONE * _base_scale
 	_sprite.animation = "walk_s"
 	add_child(_sprite)

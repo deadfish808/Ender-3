@@ -4,6 +4,7 @@ extends CharacterBody2D
 signal inventory_changed
 signal died
 
+const SPRITE_SCALE := Vector2(0.5, 0.5)  # textures are 2x resolution, rendered at half scale for finer pixels
 const WALK_SPEED := 110.0
 const SPRINT_SPEED := 170.0
 const FISTS := {"name": "Fists", "type": "melee", "dmg": 6, "cooldown": 0.5, "knockback": 60}
@@ -73,19 +74,20 @@ func _build_sprite() -> void:
 	var tex: Texture2D = load("res://assets/chars/player_sheet.png")
 	_sprite = AnimatedSprite2D.new()
 	_sprite.sprite_frames = build_char_frames(tex)
-	_sprite.offset = Vector2(0, -22)
+	_sprite.offset = Vector2(0, -44)
+	_sprite.scale = SPRITE_SCALE
 	_sprite.animation = "idle_s"
 	add_child(_sprite)
 	_sprite.play("idle_s")
 
 
 ## Shared by Player and Zombie.
-## Sheet layout (32x48 cells, 9 cols x 6 rows):
+## Sheet layout (64x96 cells after Scale2x, 9 cols x 6 rows):
 ##   rows 0-2 (S/E/N): walk frames 0-5, idle frames 6-7
 ##   rows 3-5 (S/E/N): attack_melee 0-2, attack_bow 3-5, attack_staff 6-8
 static func build_char_frames(tex: Texture2D) -> SpriteFrames:
-	var fw := 32
-	var fh := 48
+	var fw := 64
+	var fh := 96
 	var frames := SpriteFrames.new()
 	frames.remove_animation("default")
 	var dirs := ["s", "e", "n"]
@@ -231,9 +233,9 @@ func _dodge(input_dir: Vector2) -> void:
 	_knock += dir * 300.0
 	FX.dust(get_parent(), position)
 	Game.play_sfx("swing", -10.0, 0.2)
-	_sprite.scale = Vector2(1.1, 0.82)
+	_sprite.scale = Vector2(1.1, 0.82) * SPRITE_SCALE
 	var tw := create_tween()
-	tw.tween_property(_sprite, "scale", Vector2.ONE, 0.25)
+	tw.tween_property(_sprite, "scale", SPRITE_SCALE, 0.25)
 
 
 func _roll_crit(dmg: float) -> Array:

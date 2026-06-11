@@ -34,7 +34,8 @@ func _ready() -> void:
 		var fs: Vector2i = _cfg["frame_size"]
 		var anim := AnimatedSprite2D.new()
 		anim.sprite_frames = FX.strip_frames(_cfg["texture"], fs.x, fs.y, _cfg["frames"], 8.0, true)
-		anim.offset = Vector2(0, 16.0 - fs.y / 2.0)
+		anim.scale = Vector2(0.5, 0.5)
+		anim.offset = Vector2(0, 32.0 - fs.y / 2.0)
 		anim.animation = "play"
 		add_child(anim)
 		anim.play("play")
@@ -42,7 +43,8 @@ func _ready() -> void:
 	else:
 		var spr := Sprite2D.new()
 		spr.texture = load(_cfg["texture"])
-		spr.offset = Vector2(0, 16.0 - spr.texture.get_height() / 2.0)
+		spr.scale = Vector2(0.5, 0.5)
+		spr.offset = Vector2(0, 32.0 - spr.texture.get_height() / 2.0)
 		add_child(spr)
 		_sprite = spr
 	if _cfg.get("blocks", false):

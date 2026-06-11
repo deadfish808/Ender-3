@@ -41,7 +41,7 @@ func _process(_delta: float) -> void:
 			_shot("05_build_mode")
 			world.build_manager.exit_build()
 			# set up a defended camp: walls, campfire, spikes
-			var t: Vector2i = world.tilemap.local_to_map(player.position)
+			var t: Vector2i = world.world_to_tile(player.position)
 			world.occupied.erase(t + Vector2i(2, 0))
 			world.place_structure("wooden_wall", t + Vector2i(2, 0))
 			world.place_structure("wooden_wall", t + Vector2i(2, 1))
@@ -67,12 +67,12 @@ func _process(_delta: float) -> void:
 			Game.time_of_day = 0.2  # back to daylight
 			player._cam.zoom = Vector2(1.0, 1.0)
 			player._cam.position_smoothing_enabled = false
-			player.position = world.tilemap.map_to_local(Vector2i(48, 48))
+			player.position = world.tile_to_world(Vector2i(48, 48))
 		140:
 			_shot("07_town_overview")
 		142:
 			player._cam.zoom = Vector2(0.62, 0.62)
-			player.position = world.tilemap.map_to_local(Vector2i(71, 24))
+			player.position = world.tile_to_world(Vector2i(71, 24))
 		152:
 			_shot("08_city_overview")
 		156:

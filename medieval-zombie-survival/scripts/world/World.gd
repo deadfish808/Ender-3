@@ -2,7 +2,7 @@ extends Node2D
 ## Main scene: procedural isometric island, day/night cycle, zombie spawning.
 
 const MAP_SIZE := 96
-const TILE := Vector2i(64, 32)
+const TILE := Vector2i(128, 64)  # textures are 2x resolution, rendered at half scale for finer pixels
 
 # terrain atlas indices (5 columns); water is one animated tile (frames 6-8)
 const T_GRASS := [0, 1, 2]
@@ -125,18 +125,29 @@ func _build_tilemap() -> void:
 			var td := src.get_tile_data(coords, 0)
 			td.add_collision_polygon(0)
 			td.set_collision_polygon_points(0, 0, PackedVector2Array([
-				Vector2(-32, 0), Vector2(0, -16), Vector2(32, 0), Vector2(0, 16),
+				Vector2(-64, 0), Vector2(0, -32), Vector2(64, 0), Vector2(0, 32),
 			]))
 	tilemap = TileMapLayer.new()
 	tilemap.name = "Ground"
 	tilemap.tile_set = ts
+	tilemap.scale = Vector2(0.5, 0.5)
 	add_child(tilemap)
 	for d in 4:
 		var ov := TileMapLayer.new()
 		ov.name = "Fringe%d" % d
 		ov.tile_set = ts
+		ov.scale = Vector2(0.5, 0.5)
 		add_child(ov)
 		overlays.append(ov)
+
+
+## Tile <-> world helpers (the tilemap renders at half scale).
+func tile_to_world(t: Vector2i) -> Vector2:
+	return tilemap.to_global(tilemap.map_to_local(t))
+
+
+func world_to_tile(p: Vector2) -> Vector2i:
+	return tilemap.local_to_map(tilemap.to_local(p))
 
 
 func _atlas(i: int) -> Vector2i:
@@ -213,7 +224,7 @@ func _scatter_resources() -> void:
 func _spawn_resource(kind: String, tile: Vector2i) -> void:
 	var node := preload("res://scripts/world/ResourceNode.gd").new()
 	node.setup(kind, tile)
-	node.position = tilemap.map_to_local(tile)
+	node.position = tile_to_world(tile)
 	entities.add_child(node)
 	occupied[tile] = node
 
@@ -249,7 +260,7 @@ func _build_ruins() -> void:
 			var ct := Vector2i(cx + rng.randi_range(-1, 1), cy + rng.randi_range(-1, 1))
 			if not occupied.has(ct):
 				var chest := preload("res://scripts/world/Chest.gd").new()
-				chest.position = tilemap.map_to_local(ct)
+				chest.position = tile_to_world(ct)
 				entities.add_child(chest)
 				occupied[ct] = chest
 
@@ -259,7 +270,7 @@ func _scatter_pickups() -> void:
 	for i in 70:
 		var tile := Vector2i(rng.randi_range(4, MAP_SIZE - 5), rng.randi_range(4, MAP_SIZE - 5))
 		if walkable.get(tile, false) and not occupied.has(tile):
-			spawn_pickup(loot[rng.randi() % loot.size()], 1, tilemap.map_to_local(tile))
+			spawn_pickup(loot[rng.randi() % loot.size()], 1, tile_to_world(tile))
 
 
 func spawn_pickup(item: String, count: int, pos: Vector2) -> void:
@@ -272,7 +283,7 @@ func spawn_pickup(item: String, count: int, pos: Vector2) -> void:
 func _spawn_player() -> void:
 	var tile := _find_walkable_near(TOWN_CENTER + Vector2i(-2, 2))
 	var player := preload("res://scripts/player/Player.gd").new()
-	player.position = tilemap.map_to_local(tile)
+	player.position = tile_to_world(tile)
 	entities.add_child(player)
 	Game.player = player
 
@@ -356,7 +367,7 @@ func _build_town() -> void:
 	var ct := Vector2i(55, 47)
 	_clear_tile(ct)
 	var chest := preload("res://scripts/world/Chest.gd").new()
-	chest.position = tilemap.map_to_local(ct)
+	chest.position = tile_to_world(ct)
 	entities.add_child(chest)
 	occupied[ct] = chest
 
@@ -369,7 +380,7 @@ func _place_building(kind: String, top_left: Vector2i) -> void:
 	var b := building_script.new()
 	b.setup(kind)
 	var south := top_left + Vector2i(w - 1, h - 1)
-	b.position = tilemap.map_to_local(south) + Vector2(0, 16)
+	b.position = tile_to_world(south) + Vector2(0, 16)
 	entities.add_child(b)
 	for dx in w:
 		for dy in h:
@@ -383,7 +394,7 @@ func _place_small(kind: String, tile: Vector2i) -> void:
 	var building_script := preload("res://scripts/world/Building.gd")
 	var b := building_script.new()
 	b.setup(kind)
-	b.position = tilemap.map_to_local(tile)
+	b.position = tile_to_world(tile)
 	entities.add_child(b)
 	_clear_tile(tile)
 	occupied[tile] = b
@@ -444,7 +455,7 @@ func _build_city() -> void:
 	for ct in [Vector2i(68, 18), Vector2i(59, 28), Vector2i(82, 30)]:
 		_clear_tile(ct)
 		var chest := preload("res://scripts/world/Chest.gd").new()
-		chest.position = tilemap.map_to_local(ct)
+		chest.position = tile_to_world(ct)
 		entities.add_child(chest)
 		occupied[ct] = chest
 	# street dressing
@@ -474,7 +485,7 @@ func _build_city() -> void:
 		if walkable.get(zt, false) and not occupied.has(zt):
 			var z := preload("res://scripts/enemies/Zombie.gd").new()
 			z.setup("brute" if i % 6 == 0 else "walker")
-			z.position = tilemap.map_to_local(zt)
+			z.position = tile_to_world(zt)
 			entities.add_child(z)
 
 
@@ -508,7 +519,8 @@ func _add_clutter(kind: String, tile: Vector2i) -> void:
 		_clutter_cache[kind] = load("res://assets/clutter/%s.png" % kind)
 	var s := Sprite2D.new()
 	s.texture = _clutter_cache[kind]
-	s.position = tilemap.map_to_local(tile) + Vector2(rng.randf_range(-18, 18), rng.randf_range(-7, 7))
+	s.scale = Vector2(0.5, 0.5)
+	s.position = tile_to_world(tile) + Vector2(rng.randf_range(-18, 18), rng.randf_range(-7, 7))
 	s.flip_h = rng.randf() < 0.5
 	decals.add_child(s)
 
@@ -554,11 +566,11 @@ func _try_spawn_zombie() -> void:
 		var ang := rng.randf() * TAU
 		var dist := rng.randf_range(650.0, 950.0)
 		var pos: Vector2 = Game.player.position + Vector2(cos(ang), sin(ang) * 0.5) * dist
-		var tile := tilemap.local_to_map(pos)
+		var tile := world_to_tile(pos)
 		if walkable.get(tile, false) and not occupied.has(tile):
 			var z := preload("res://scripts/enemies/Zombie.gd").new()
 			z.setup(_pick_zombie_type())
-			z.position = tilemap.map_to_local(tile)
+			z.position = tile_to_world(tile)
 			entities.add_child(z)
 			return
 
@@ -578,7 +590,7 @@ func _pick_zombie_type() -> String:
 func can_place(tile: Vector2i) -> bool:
 	if not walkable.get(tile, false) or occupied.has(tile):
 		return false
-	var pos := tilemap.map_to_local(tile)
+	var pos := tile_to_world(tile)
 	if Game.player and is_instance_valid(Game.player) and Game.player.position.distance_to(pos) < 30.0:
 		return false
 	for z in get_tree().get_nodes_in_group("zombies"):
@@ -592,7 +604,7 @@ func place_structure(item_id: String, tile: Vector2i) -> bool:
 		return false
 	var s := preload("res://scripts/world/Structure.gd").new()
 	s.setup(item_id, tile)
-	s.position = tilemap.map_to_local(tile)
+	s.position = tile_to_world(tile)
 	entities.add_child(s)
 	occupied[tile] = s
 	Game.play_sfx("build")

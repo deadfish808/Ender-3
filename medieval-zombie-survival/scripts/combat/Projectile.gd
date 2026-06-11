@@ -34,12 +34,14 @@ func _ready() -> void:
 	if kind == "arrow":
 		var spr := Sprite2D.new()
 		spr.texture = load("res://assets/fx/arrow.png")
+		spr.scale = Vector2(0.5, 0.5)
 		add_child(spr)
 		rotation = dir.angle()
 	else:
 		var path := "res://assets/fx/firebolt.png" if kind == "fire" else "res://assets/fx/frostbolt.png"
 		var anim := AnimatedSprite2D.new()
-		anim.sprite_frames = FX.strip_frames(path, 14, 14, 3, 12.0, true)
+		anim.sprite_frames = FX.strip_frames(path, 28, 28, 3, 12.0, true)
+		anim.scale = Vector2(0.5, 0.5)
 		anim.animation = "play"
 		add_child(anim)
 		anim.play("play")

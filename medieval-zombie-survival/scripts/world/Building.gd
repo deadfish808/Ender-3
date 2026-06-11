@@ -33,11 +33,12 @@ func _ready() -> void:
 	var tex: Texture2D = load(_cfg["tex"])
 	var spr := Sprite2D.new()
 	spr.texture = tex
+	spr.scale = Vector2(0.5, 0.5)  # textures are 2x resolution, rendered at half scale for finer pixels
 	var tw := float(tex.get_width())
 	var th := float(tex.get_height())
 	if _cfg.get("small", false):
 		# node sits at the tile center; sprite feet at the bottom of the image
-		spr.offset = Vector2(0, 2.0 - th / 2.0)
+		spr.offset = Vector2(0, 4.0 - th / 2.0)
 		var shape := CollisionShape2D.new()
 		var circle := CircleShape2D.new()
 		circle.radius = 8.0
@@ -48,7 +49,7 @@ func _ready() -> void:
 		# node sits at the south corner of the footprint diamond
 		var w := int(_cfg["w"])
 		var h := int(_cfg["h"])
-		var south := Vector2(32.0 * w, th - 2.0)
+		var south := Vector2(64.0 * w, th - 4.0)
 		spr.offset = Vector2(tw / 2.0 - south.x, th / 2.0 - south.y)
 		var poly := CollisionPolygon2D.new()
 		poly.polygon = PackedVector2Array([

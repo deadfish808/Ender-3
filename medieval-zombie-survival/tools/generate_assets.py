@@ -99,9 +99,51 @@ def with_shadow(im, cx, cy, rx, ry, alpha=70):
     return base
 
 
+def scale2x(im):
+    """Pixel-art-aware 2x upscale (Scale2x): doubles resolution while
+    smoothing diagonals, keeping the hand-pixelled look."""
+    w, h = im.size
+    sp = im.load()
+    out = Image.new("RGBA", (w * 2, h * 2))
+    op = out.load()
+
+    def g(x, y):
+        if x < 0 or y < 0 or x >= w or y >= h:
+            return (0, 0, 0, 0)
+        return sp[x, y]
+
+    for y in range(h):
+        for x in range(w):
+            P = sp[x, y]
+            A = g(x, y - 1)
+            B = g(x + 1, y)
+            C = g(x - 1, y)
+            D = g(x, y + 1)
+            e0 = e1 = e2 = e3 = P
+            if C == A and C != D and A != B:
+                e0 = A
+            if A == B and A != C and B != D:
+                e1 = B
+            if D == C and D != B and C != A:
+                e2 = C
+            if B == D and B != A and D != C:
+                e3 = D
+            op[2 * x, 2 * y] = e0
+            op[2 * x + 1, 2 * y] = e1
+            op[2 * x, 2 * y + 1] = e2
+            op[2 * x + 1, 2 * y + 1] = e3
+    return out
+
+
+# these are sampled at native size by the engine (lights, UI overlay, OS icon)
+NO_UPSCALE = {"fx/light.png", "fx/vignette.png", "../icon.png", "tiles/terrain_atlas.png"}
+
+
 def save(im, rel):
     path = os.path.join(ASSETS, rel)
     os.makedirs(os.path.dirname(path), exist_ok=True)
+    if rel not in NO_UPSCALE:
+        im = scale2x(im)
     im.save(path)
     print("wrote", rel)
 
@@ -122,14 +164,15 @@ def value_noise(x, y, seed, scale=0.35):
     return (n / 3.0 + 1.0) / 2.0
 
 
-def terrain_tile(ramp, seed, tufts=0, tuft_color=None, waves=False, wave_seed=None):
-    im = new(TILE_W, TILE_H)
+def terrain_tile(ramp, seed, tufts=0, tuft_color=None, waves=False, wave_seed=None,
+                 tw=TILE_W, th=TILE_H, nscale=0.22):
+    im = new(tw, th)
     rng = random.Random(seed)
-    for y in range(TILE_H):
-        for x in range(TILE_W):
-            if not in_diamond(x, y):
+    for y in range(th):
+        for x in range(tw):
+            if not in_diamond(x, y, tw, th):
                 continue
-            n = value_noise(x, y, seed, scale=0.22)
+            n = value_noise(x, y, seed, scale=nscale)
             n += (rng.random() - 0.5) * 0.12
             if n < 0.18:
                 c = ramp[0]
@@ -141,9 +184,9 @@ def terrain_tile(ramp, seed, tufts=0, tuft_color=None, waves=False, wave_seed=No
                 c = ramp[3]
             px(im, x, y, c + (255,))
     for _ in range(tufts):
-        tx = rng.randint(14, TILE_W - 14)
-        ty = rng.randint(8, TILE_H - 8)
-        if in_diamond(tx, ty):
+        tx = rng.randint(tw // 5, tw - tw // 5)
+        ty = rng.randint(th // 4, th - th // 4)
+        if in_diamond(tx, ty, tw, th):
             col = tuft_color or ramp[3]
             px(im, tx, ty, col + (255,))
             px(im, tx, ty - 1, col + (255,))
@@ -151,10 +194,10 @@ def terrain_tile(ramp, seed, tufts=0, tuft_color=None, waves=False, wave_seed=No
                 px(im, tx + 1, ty, shade(col + (255,), 0.85))
     if waves:
         wrng = random.Random(wave_seed if wave_seed is not None else seed)
-        for _ in range(6):
-            wx = wrng.randint(10, TILE_W - 18)
-            wy = wrng.randint(6, TILE_H - 7)
-            if in_diamond(wx, wy) and in_diamond(wx + 6, wy):
+        for _ in range(6 * tw // TILE_W):
+            wx = wrng.randint(tw // 6, tw - tw // 4)
+            wy = wrng.randint(th // 5, th - th // 5)
+            if in_diamond(wx, wy, tw, th) and in_diamond(wx + 6, wy, tw, th):
                 for i in range(wrng.randint(4, 7)):
                     px(im, wx + i, wy, WATER[3] + (255,))
                 if wrng.random() < 0.5:
@@ -162,18 +205,18 @@ def terrain_tile(ramp, seed, tufts=0, tuft_color=None, waves=False, wave_seed=No
     return im
 
 
-def cobble_tile(seed):
+def cobble_tile(seed, tw=TILE_W, th=TILE_H):
     """Rounded cobblestones with dark grout, clipped to the iso diamond."""
-    im = new(TILE_W, TILE_H)
+    im = new(tw, th)
     rng = random.Random(seed)
     grout = shade(STONE[0] + (255,), 0.62)
-    for y in range(TILE_H):
-        for x in range(TILE_W):
-            if in_diamond(x, y):
+    for y in range(th):
+        for x in range(tw):
+            if in_diamond(x, y, tw, th):
                 px(im, x, y, grout)
-    for row, y in enumerate(range(2, TILE_H - 1, 5)):
+    for row, y in enumerate(range(2, th - 1, 5)):
         off = (row % 2) * 4 + rng.randint(-1, 1)
-        for x in range(3 + off, TILE_W - 2, 8):
+        for x in range(3 + off, tw - 2, 8):
             jx = x + rng.randint(-1, 1)
             jy = y + rng.randint(-1, 1)
             tone = rng.choice([STONE[1], STONE[1], STONE[2], STONE[2], STONE[3]])
@@ -184,9 +227,9 @@ def cobble_tile(seed):
             px(im, jx, jy - 1, shade(tone + (255,), 1.1))
             px(im, jx + 1, jy + 1, shade(tone + (255,), 0.8))
     # clip to diamond
-    for y in range(TILE_H):
-        for x in range(TILE_W):
-            if not in_diamond(x, y):
+    for y in range(th):
+        for x in range(tw):
+            if not in_diamond(x, y, tw, th):
                 px(im, x, y, (0, 0, 0, 0))
     return im
 
@@ -204,7 +247,7 @@ def _mat_color(x, y, kind, rng):
             c = shade(STONE[0] + (255,), 0.8)[:3]
         return c
     ramp = FRINGE_RAMPS[kind]
-    n = value_noise(x, y, {"grass": 1, "dirt": 4, "sand": 6}[kind], scale=0.22)
+    n = value_noise(x, y, {"grass": 1, "dirt": 4, "sand": 6}[kind], scale=0.13)
     n += (rng.random() - 0.5) * 0.12
     if n < 0.18:
         return ramp[0]
@@ -215,17 +258,17 @@ def _mat_color(x, y, kind, rng):
     return ramp[3]
 
 
-def fringe_tile(kind, direction, seed):
+def fringe_tile(kind, direction, seed, tw=TILE_W, th=TILE_H):
     """A transparent tile where `kind` bleeds in from one diamond edge
     (nw/ne/sw/se) with an irregular, dithered boundary."""
-    im = new(TILE_W, TILE_H)
+    im = new(tw, th)
     rng = random.Random(seed)
-    for y in range(TILE_H):
-        for x in range(TILE_W):
-            if not in_diamond(x, y):
+    for y in range(th):
+        for x in range(tw):
+            if not in_diamond(x, y, tw, th):
                 continue
-            nx = (x + 0.5) / TILE_W * 2 - 1
-            ny = (y + 0.5) / TILE_H * 2 - 1
+            nx = (x + 0.5) / tw * 2 - 1
+            ny = (y + 0.5) / th * 2 - 1
             if direction == "nw":
                 s = nx + ny + 1
                 t = (nx - ny + 1) / 2
@@ -245,9 +288,9 @@ def fringe_tile(kind, direction, seed):
             elif s < depth + 0.16 and rng.random() < 0.4:
                 px(im, x, y, c + (255,))  # dithered fade
     if kind == "grass":
-        for i in range(3):
-            tx = rng.randint(8, TILE_W - 8)
-            ty = rng.randint(4, TILE_H - 5)
+        for i in range(3 * tw // TILE_W):
+            tx = rng.randint(8, tw - 8)
+            ty = rng.randint(4, th - 5)
             if im.getpixel((tx, ty))[3] > 0:
                 px(im, tx, ty - 1, GRASS[3] + (255,))
     return im
@@ -256,28 +299,29 @@ def fringe_tile(kind, direction, seed):
 def build_terrain_atlas():
     # atlas layout (col,row): see World.gd TILES mapping.
     # Water occupies indices 6,7,8 (horizontally adjacent -> tileset animation).
+    tw, th = TILE_W * 2, TILE_H * 2  # native high-res ground
     cells = [
-        terrain_tile(GRASS, 1, tufts=7),
-        terrain_tile(GRASS, 2, tufts=5),
-        terrain_tile(GRASS, 3, tufts=9),
-        terrain_tile(DIRT, 4),
-        terrain_tile(DIRT, 5),
-        terrain_tile(SAND, 6),
-        terrain_tile(WATER, 7, waves=True, wave_seed=70),
-        terrain_tile(WATER, 7, waves=True, wave_seed=71),
-        terrain_tile(WATER, 7, waves=True, wave_seed=72),
-        cobble_tile(9),
-        cobble_tile(10),
+        terrain_tile(GRASS, 1, tufts=14, tw=tw, th=th, nscale=0.11),
+        terrain_tile(GRASS, 2, tufts=10, tw=tw, th=th, nscale=0.11),
+        terrain_tile(GRASS, 3, tufts=18, tw=tw, th=th, nscale=0.11),
+        terrain_tile(DIRT, 4, tw=tw, th=th, nscale=0.11),
+        terrain_tile(DIRT, 5, tw=tw, th=th, nscale=0.11),
+        terrain_tile(SAND, 6, tw=tw, th=th, nscale=0.11),
+        terrain_tile(WATER, 7, waves=True, wave_seed=70, tw=tw, th=th, nscale=0.11),
+        terrain_tile(WATER, 7, waves=True, wave_seed=71, tw=tw, th=th, nscale=0.11),
+        terrain_tile(WATER, 7, waves=True, wave_seed=72, tw=tw, th=th, nscale=0.11),
+        cobble_tile(9, tw=tw, th=th),
+        cobble_tile(10, tw=tw, th=th),
     ]
     # fringe overlays, indices 11..26: mats x dirs (order must match World.gd)
     for mi, mat in enumerate(["grass", "dirt", "sand", "stone"]):
         for di, d in enumerate(["nw", "ne", "sw", "se"]):
-            cells.append(fringe_tile(mat, d, 50 + mi * 4 + di))
+            cells.append(fringe_tile(mat, d, 50 + mi * 4 + di, tw=tw, th=th))
     cols = 5
     rows = (len(cells) + cols - 1) // cols
-    atlas = new(cols * TILE_W, rows * TILE_H)
+    atlas = new(cols * tw, rows * th)
     for i, c in enumerate(cells):
-        atlas.paste(c, ((i % cols) * TILE_W, (i // cols) * TILE_H))
+        atlas.paste(c, ((i % cols) * tw, (i // cols) * th))
     save(atlas, "tiles/terrain_atlas.png")
 
 

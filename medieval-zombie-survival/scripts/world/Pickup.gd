@@ -23,7 +23,8 @@ func _ready() -> void:
 	add_child(shape)
 	_sprite = Sprite2D.new()
 	_sprite.texture = ItemDB.icon(item)
-	_sprite.offset = Vector2(0, -8)
+	_sprite.scale = Vector2(0.5, 0.5)
+	_sprite.offset = Vector2(0, -16)
 	add_child(_sprite)
 	_bob = randf() * TAU
 	body_entered.connect(_on_body)

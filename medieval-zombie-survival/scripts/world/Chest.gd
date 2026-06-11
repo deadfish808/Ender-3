@@ -16,7 +16,8 @@ func _ready() -> void:
 	collision_mask = 0
 	_sprite = Sprite2D.new()
 	_sprite.texture = load("res://assets/props/chest_closed.png")
-	_sprite.offset = Vector2(0, -13)
+	_sprite.scale = Vector2(0.5, 0.5)
+	_sprite.offset = Vector2(0, -26)
 	add_child(_sprite)
 	var shape := CollisionShape2D.new()
 	var circle := CircleShape2D.new()

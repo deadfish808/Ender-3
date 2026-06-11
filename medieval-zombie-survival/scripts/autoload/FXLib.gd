@@ -27,6 +27,7 @@ func strip_frames(path: String, fw: int, fh: int, count: int, fps: float, loop :
 func _one_shot(parent: Node, pos: Vector2, frames: SpriteFrames, rot := 0.0, z := 50) -> AnimatedSprite2D:
 	var s := AnimatedSprite2D.new()
 	s.sprite_frames = frames
+	s.scale = Vector2(0.5, 0.5)  # textures are 2x resolution, rendered at half scale for finer pixels
 	s.position = pos
 	s.rotation = rot
 	s.z_index = z
@@ -38,18 +39,18 @@ func _one_shot(parent: Node, pos: Vector2, frames: SpriteFrames, rot := 0.0, z :
 
 
 func slash(parent: Node, pos: Vector2, angle: float, scale := 1.0) -> void:
-	var frames := strip_frames("res://assets/fx/slash.png", 36, 36, 3, 18.0)
+	var frames := strip_frames("res://assets/fx/slash.png", 72, 72, 3, 18.0)
 	var s := _one_shot(parent, pos, frames, angle)
-	s.scale = Vector2.ONE * scale
+	s.scale = Vector2.ONE * 0.5 * scale
 
 
 func blood(parent: Node, pos: Vector2) -> void:
-	var frames := strip_frames("res://assets/fx/blood.png", 24, 24, 3, 12.0)
+	var frames := strip_frames("res://assets/fx/blood.png", 48, 48, 3, 12.0)
 	_one_shot(parent, pos, frames, randf() * TAU, 1)
 
 
 func explosion(parent: Node, pos: Vector2) -> void:
-	var frames := strip_frames("res://assets/fx/explosion.png", 40, 40, 4, 14.0)
+	var frames := strip_frames("res://assets/fx/explosion.png", 80, 80, 4, 14.0)
 	_one_shot(parent, pos, frames, 0.0, 60)
 
 
@@ -74,9 +75,10 @@ func float_text(parent: Node, pos: Vector2, text: String, color := Color.WHITE) 
 func corpse(parent: Node, pos: Vector2, tex: Texture2D, flip: bool, tint: Color) -> void:
 	var s := Sprite2D.new()
 	s.texture = tex
+	s.scale = Vector2(0.5, 0.5)
 	s.flip_h = flip
 	s.position = pos + Vector2(0, 1)
-	s.offset = Vector2(0, -16)
+	s.offset = Vector2(0, -32)
 	s.rotation = randf_range(-0.3, 0.3) + (PI / 2.0 if randf() < 0.5 else -PI / 2.0)
 	s.modulate = tint * Color(0.62, 0.58, 0.6, 1.0)
 	parent.add_child(s)
@@ -93,9 +95,10 @@ func blood_decal(pos: Vector2) -> void:
 		return
 	var at := AtlasTexture.new()
 	at.atlas = load("res://assets/fx/blood.png")
-	at.region = Rect2(48, 0, 24, 24)
+	at.region = Rect2(96, 0, 48, 48)
 	var s := Sprite2D.new()
 	s.texture = at
+	s.scale = Vector2(0.5, 0.5)
 	s.position = pos
 	s.rotation = randf() * TAU
 	s.modulate = Color(0.8, 0.75, 0.78, 0.85)

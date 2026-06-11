@@ -67,7 +67,7 @@ const BUILDABLES := {
 	"barricade": {"hp": 120, "texture": "res://assets/buildables/barricade.png", "blocks": true},
 	"spike_trap": {"hp": 90, "texture": "res://assets/buildables/spike_trap.png", "blocks": false, "spikes": true},
 	"campfire": {"hp": 80, "texture": "res://assets/buildables/campfire.png", "blocks": false,
-			"frames": 4, "frame_size": Vector2i(40, 44), "light": true, "station": "campfire"},
+			"frames": 4, "frame_size": Vector2i(80, 88), "light": true, "station": "campfire"},
 	"workbench": {"hp": 140, "texture": "res://assets/buildables/workbench.png", "blocks": true, "station": "workbench"},
 }
 

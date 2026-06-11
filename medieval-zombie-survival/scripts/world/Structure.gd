@@ -112,6 +112,7 @@ func interact(player: Node) -> void:
 		_shape.set_deferred("disabled", door_open)
 		(_sprite as Sprite2D).texture = load(_cfg["texture_open"] if door_open else _cfg["texture"])
 		Game.play_sfx("door")
+		Game.world.alert_zombies(position, 90.0)
 		return
 	# repair: 1 wood -> 30 hp
 	if hp < max_hp and player.inventory.get("wood", 0) > 0:

@@ -18,6 +18,7 @@ var hunger := 100.0
 
 var facing := "s"
 var dead := false
+var bleeding := false
 
 var _attack_cd := 0.0
 var _special_cd := 0.0
@@ -60,7 +61,8 @@ func _ready() -> void:
 	_light.energy = 0.0
 	add_child(_light)
 	add_item("wooden_sword", 1)
-	add_item("berries", 5)
+	add_item("berries", 4)
+	add_item("bandage", 1)
 	add_item("wood", 4)
 	add_item("stone", 2)
 	equipped = "wooden_sword"
@@ -150,6 +152,7 @@ func _physics_process(delta: float) -> void:
 		if _dust_timer <= 0.0:
 			_dust_timer = 0.22
 			FX.dust(get_parent(), position)
+			Game.world.alert_zombies(position, 90.0)
 	elif _stamina_delay <= 0.0:
 		stamina = minf(100.0, stamina + 15.0 * delta)
 
@@ -164,11 +167,13 @@ func _physics_process(delta: float) -> void:
 
 
 func _update_survival(delta: float) -> void:
-	hunger = maxf(0.0, hunger - 0.16 * delta)
+	hunger = maxf(0.0, hunger - 0.2 * delta)
 	if hunger <= 0.0:
 		_apply_damage(1.2 * delta, true)
 	elif hunger > 70.0:
-		hp = minf(max_hp(), hp + 0.6 * delta)
+		hp = minf(max_hp(), hp + 0.25 * delta)  # healing is slow; carry bandages
+	if bleeding:
+		_apply_damage(0.5 * delta, true)
 	if SkillTree.has_skill("second_wind") and hp < max_hp() * 0.3:
 		hp = minf(max_hp(), hp + 2.0 * delta)
 	mana = minf(max_mana(), mana + SkillTree.mana_regen() * delta)
@@ -272,7 +277,10 @@ func _melee_attack(w: Dictionary) -> void:
 	_stamina_delay = 0.6
 	var combo_mult: float = [1.0, 1.15, 1.5][_combo_stage]
 	var finisher := _combo_stage == 2
-	_attack_cd = float(w["cooldown"]) * (1.5 if finisher else 1.0)
+	var exhausted := stamina < 20.0
+	if exhausted:
+		combo_mult *= 0.6  # too tired to swing properly
+	_attack_cd = float(w["cooldown"]) * (1.5 if finisher else 1.0) * (1.4 if exhausted else 1.0)
 	_combo_timer = 1.1
 	_play_attack_anim("melee")
 	var aim := _aim_dir()
@@ -281,6 +289,7 @@ func _melee_attack(w: Dictionary) -> void:
 	FX.slash(get_parent(), position + aim * 24.0 + Vector2(0, -14), aim.angle(),
 			1.35 if finisher else 1.0)
 	Game.play_sfx("swing", -6.0 if not finisher else -2.0)
+	Game.world.alert_zombies(position, 130.0)
 	var dmg := float(w["dmg"]) * SkillTree.melee_mult() * combo_mult
 	var crit_roll := _roll_crit(dmg)
 	dmg = crit_roll[0]
@@ -296,9 +305,7 @@ func _melee_attack(w: Dictionary) -> void:
 		hit_zombies.sort_custom(func(a, b): return a.position.distance_squared_to(origin) < b.position.distance_squared_to(origin))
 		var count := hit_zombies.size() if SkillTree.has_skill("cleave") else 1
 		for i in mini(count, hit_zombies.size()):
-			hit_zombies[i].hit(dmg, position, knockback)
-			if crit:
-				FX.float_text(get_parent(), hit_zombies[i].position + Vector2(0, -10), "CRIT!", Color(1.0, 0.8, 0.2))
+			hit_zombies[i].hit(dmg, position, knockback * (1.3 if crit else 1.0))
 		_combo_stage = (_combo_stage + 1) % 3
 	# harvest the closest node in the arc
 	var best: Node = null
@@ -321,6 +328,7 @@ func _bow_attack(w: Dictionary) -> void:
 	_attack_cd = float(w["cooldown"]) * SkillTree.bow_cooldown_mult()
 	_play_attack_anim("bow")
 	Game.play_sfx("bow", -4.0)
+	Game.world.alert_zombies(position, 60.0)  # bows are quiet: the smart choice
 	var aim := _aim_dir()
 	var crit_roll := _roll_crit(float(w["dmg"]) * SkillTree.bow_mult())
 	var dmg: float = crit_roll[0]
@@ -341,6 +349,7 @@ func _staff_attack(w: Dictionary) -> void:
 	_attack_cd = float(w["cooldown"])
 	_play_attack_anim("staff")
 	Game.play_sfx("magic", -6.0)
+	Game.world.alert_zombies(position, 200.0)  # magic rings out across the fields
 	var crit_roll := _roll_crit(float(w["dmg"]) * SkillTree.spell_mult())
 	_spawn_projectile("fire", _aim_dir(), crit_roll[0], 0, SkillTree.has_skill("fireball"))
 
@@ -358,6 +367,7 @@ func _frost_nova() -> void:
 	mana -= 20.0
 	_special_cd = 6.0
 	Game.play_sfx("frost")
+	Game.world.alert_zombies(position, 220.0)
 	FX.ring(get_parent(), position, 130.0, Color(0.6, 0.85, 1.0))
 	var dmg := 12.0 * SkillTree.spell_mult()
 	for z in get_tree().get_nodes_in_group("zombies"):
@@ -366,23 +376,24 @@ func _frost_nova() -> void:
 			z.hit(dmg, position, 40.0)
 
 
-func take_damage(amount: float, from_pos: Vector2) -> void:
+func take_damage(amount: float, from_pos: Vector2, wound_chance := 0.0) -> void:
 	if _iframes > 0.0 or dead:
 		return
 	_iframes = 0.6
 	_knock = (position - from_pos).normalized() * 140.0
 	shake_camera(3.5)
 	Game.play_sfx("hurt")
+	if not bleeding and randf() < wound_chance:
+		bleeding = true
+		FX.float_text(get_parent(), position, "wounded — bleeding!", Color(1.0, 0.35, 0.3))
 	_apply_damage(amount * SkillTree.damage_taken_mult(), false)
 	_sprite.modulate = Color(1, 0.4, 0.4)
 	var tw := create_tween()
 	tw.tween_property(_sprite, "modulate", Color.WHITE, 0.25)
 
 
-func _apply_damage(amount: float, quiet: bool) -> void:
+func _apply_damage(amount: float, _quiet: bool) -> void:
 	hp -= amount
-	if not quiet:
-		FX.float_text(get_parent(), position, str(-int(maxf(1, amount))), Color(1, 0.5, 0.4))
 	if hp <= 0.0 and not dead:
 		dead = true
 		hp = 0.0
@@ -446,6 +457,8 @@ func use_item(id: String) -> void:
 			remove_item(id, 1)
 			hunger = minf(100.0, hunger + float(item.get("food", 0)))
 			hp = minf(max_hp(), hp + float(item.get("heal", 0)))
+			if item.get("cures", false):
+				bleeding = false
 			Game.play_sfx("eat")
 		"melee", "bow", "staff":
 			equipped = id

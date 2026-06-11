@@ -488,11 +488,19 @@ func place_structure(item_id: String, tile: Vector2i) -> bool:
 	entities.add_child(s)
 	occupied[tile] = s
 	Game.play_sfx("build")
+	alert_zombies(s.position, 150.0)  # hammering carries
 	return true
 
 
 func free_tile(tile: Vector2i) -> void:
 	occupied.erase(tile)
+
+
+## Broadcast a noise: zombies in range shamble over to investigate.
+func alert_zombies(pos: Vector2, radius: float) -> void:
+	for z in get_tree().get_nodes_in_group("zombies"):
+		if z.position.distance_to(pos) < radius:
+			z.hear_noise(pos)
 
 
 func station_nearby(tag: String) -> bool:

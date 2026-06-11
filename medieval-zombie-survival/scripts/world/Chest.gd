@@ -3,7 +3,7 @@ extends StaticBody2D
 
 const LOOT := [
 	["cloth", 1, 3], ["iron_scrap", 1, 3], ["essence", 1, 2], ["arrow", 3, 8],
-	["rope", 1, 2], ["salve", 1, 1], ["plank", 1, 3],
+	["rope", 1, 2], ["salve", 1, 1], ["plank", 1, 3], ["bandage", 1, 3],
 ]
 
 var opened := false

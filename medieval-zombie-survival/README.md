@@ -55,7 +55,16 @@ horde grows larger and more aggressive every day.
   for magic staves.
 - **Combat**: melee swings chain into a 3-hit combo with a heavy finisher; all attacks
   can crit; dodge roll through hordes with `Space`. Zombies lurch, flank around
-  obstacles, and leave corpses and blood where they fall.
+  obstacles, and leave corpses and blood where they fall. There are no enemy health
+  bars or damage numbers — read a zombie's wounds by how bloodied it looks.
+- **Noise is death.** Zombies have short sight but sharp ears: melee swings, sprinting,
+  hammering structures, doors, magic, and especially explosions all draw the horde to
+  the sound. Bows are quiet. Fighting loud in the open invites a swarm.
+- **Wounds**: zombie hits can open a bleeding wound that drains health until you use a
+  bandage (craft 2 from 1 cloth) or a salve. Healing from food is slow — survival
+  favors not getting hit at all.
+- **Exhaustion**: below 20 stamina your swings turn feeble and slow. Manage sprinting
+  and attacking, or the horde will catch you winded.
 
 ### Enemies
 

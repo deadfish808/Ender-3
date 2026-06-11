@@ -2,11 +2,11 @@ extends CharacterBody2D
 ## The walking dead. Wanders by day, hunts by night, bashes down defenses.
 
 const TYPES := {
-	"walker": {"speed": 40.0, "hp": 40.0, "dmg": 9.0, "structure_dmg": 6.0, "xp": 10,
+	"walker": {"speed": 40.0, "hp": 50.0, "dmg": 12.0, "structure_dmg": 7.0, "xp": 10,
 			"tint": Color(1, 1, 1), "scale": 1.0},
-	"runner": {"speed": 88.0, "hp": 28.0, "dmg": 7.0, "structure_dmg": 4.0, "xp": 14,
+	"runner": {"speed": 88.0, "hp": 30.0, "dmg": 9.0, "structure_dmg": 4.0, "xp": 14,
 			"tint": Color(1.05, 0.95, 0.8), "scale": 0.95},
-	"brute": {"speed": 32.0, "hp": 150.0, "dmg": 20.0, "structure_dmg": 18.0, "xp": 30,
+	"brute": {"speed": 32.0, "hp": 190.0, "dmg": 26.0, "structure_dmg": 20.0, "xp": 30,
 			"tint": Color(0.8, 0.85, 0.8), "scale": 1.3},
 }
 
@@ -38,8 +38,9 @@ var _avoid_dir := Vector2.ZERO
 var _avoid_time := 0.0
 
 var _sprite: AnimatedSprite2D
-var _bar: Node2D
 var facing := "s"
+var _investigate_pos := Vector2.ZERO
+var _investigate_time := 0.0
 
 
 func setup(p_type: String) -> void:
@@ -76,9 +77,6 @@ func _ready() -> void:
 	add_child(_sprite)
 	_sprite.play("walk_s")
 	_sprite.speed_scale = randf_range(0.8, 1.2)
-	_bar = preload("res://scripts/ui/HealthBar.gd").new()
-	_bar.position = Vector2(0, -34)
-	add_child(_bar)
 	_think = randf() * 0.3
 	_lurch = randf() * TAU
 
@@ -91,7 +89,7 @@ func _physics_process(delta: float) -> void:
 		_slow_time -= delta
 		if _slow_time <= 0.0:
 			_slow_mult = 1.0
-			_sprite.modulate = TYPES[type]["tint"]
+			_sprite.modulate = _current_tint()
 	_think -= delta
 	if _think <= 0.0:
 		_think = 0.25
@@ -101,6 +99,12 @@ func _physics_process(delta: float) -> void:
 	var desired := Vector2.ZERO
 	if _aggro and player and is_instance_valid(player) and not player.dead:
 		desired = (player.position - position).normalized()
+	elif _investigate_time > 0.0:
+		_investigate_time -= delta
+		desired = (_investigate_pos - position).normalized()
+		if position.distance_to(_investigate_pos) < 24.0:
+			_investigate_time = 0.0
+			_wander_dir = Vector2.ZERO
 	else:
 		desired = _wander_dir
 	desired += _separation
@@ -127,7 +131,7 @@ func _physics_process(delta: float) -> void:
 		if position.distance_to(player.position) < 26.0 and _attack_cd <= 0.0:
 			_attack_cd = 1.1
 			_play_lunge((player.position - position).normalized())
-			player.take_damage(dmg, position)
+			player.take_damage(dmg, position, 0.35 if type == "brute" else 0.18)
 		elif _bash_cd <= 0.0:
 			_bash_structures()
 
@@ -140,15 +144,16 @@ func _think_tick() -> void:
 			_wander_dir = Vector2.from_angle(randf() * TAU) if randf() < 0.7 else Vector2.ZERO
 		return
 	_separation = _compute_separation()
+	# short sight: zombies mostly find you through the noise you make
 	var dist := position.distance_to(player.position)
-	var aggro_range := 150.0
+	var aggro_range := 110.0
 	if Game.is_night():
-		aggro_range = 300.0
+		aggro_range = 170.0
 	if type == "runner":
-		aggro_range += 60.0
+		aggro_range += 50.0
 	if dist < aggro_range:
 		_aggro = true
-		_aggro_memory = 10.0
+		_aggro_memory = 8.0
 	else:
 		_aggro_memory -= 0.25
 		if _aggro_memory <= 0.0:
@@ -225,22 +230,36 @@ func _update_anim(move: Vector2) -> void:
 		_sprite.play(anim)
 
 
+## A noise reached this zombie: shamble over and investigate.
+func hear_noise(pos: Vector2) -> void:
+	if _aggro:
+		return
+	_investigate_pos = pos + Vector2(randf_range(-20, 20), randf_range(-12, 12))
+	_investigate_time = 9.0
+
+
+## No health bars, no damage numbers: wounds show on the body itself.
+func _current_tint() -> Color:
+	if _slow_time > 0.0:
+		return Color(0.6, 0.8, 1.4)
+	var base: Color = TYPES[type]["tint"]
+	return base.lerp(Color(0.72, 0.45, 0.45), clampf(1.0 - hp / max_hp, 0.0, 0.6))
+
+
 func hit(amount: float, from_pos: Vector2, knockback: float) -> void:
 	if hp <= 0.0:
 		return
 	hp -= amount
 	_aggro = true
 	_aggro_memory = 12.0
-	_bar.update_bar(hp, max_hp)
 	Game.play_sfx("zombie_hit", -6.0)
-	FX.float_text(get_parent(), position, str(int(amount)), Color(1, 0.85, 0.4))
 	if knockback > 0.0:
 		position += (position - from_pos).normalized() * knockback * 0.12
 	_sprite.modulate = Color(1.6, 1.2, 1.2)
 	_sprite.scale = Vector2.ONE * _base_scale * 1.12
 	var tw := create_tween()
 	tw.set_parallel(true)
-	tw.tween_property(_sprite, "modulate", TYPES[type]["tint"] if _slow_time <= 0.0 else Color(0.6, 0.8, 1.4), 0.18)
+	tw.tween_property(_sprite, "modulate", _current_tint(), 0.18)
 	tw.tween_property(_sprite, "scale", Vector2.ONE * _base_scale, 0.15)
 	if hp <= 0.0:
 		_die()

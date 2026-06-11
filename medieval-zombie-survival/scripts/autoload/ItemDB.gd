@@ -17,7 +17,8 @@ const ITEMS := {
 	"berries": {"name": "Berries", "desc": "Wild berries. Eat to restore hunger.", "type": "food", "food": 20, "heal": 2},
 	"mushroom": {"name": "Mushroom", "desc": "A forest mushroom. Edible... probably.", "type": "food", "food": 12, "heal": 0},
 	"stew": {"name": "Mushroom Stew", "desc": "Hearty hot stew. Restores hunger and some health.", "type": "food", "food": 55, "heal": 12},
-	"salve": {"name": "Healing Salve", "desc": "Herbal salve. Restores 40 health.", "type": "food", "food": 0, "heal": 40},
+	"salve": {"name": "Healing Salve", "desc": "Herbal salve. Restores 40 health and stops bleeding.", "type": "food", "food": 0, "heal": 40, "cures": true},
+	"bandage": {"name": "Bandage", "desc": "Stops bleeding and patches small wounds.", "type": "food", "food": 0, "heal": 6, "cures": true},
 	# weapons
 	"wooden_sword": {"name": "Wooden Sword", "desc": "A practice blade. Better than fists.", "type": "melee", "dmg": 14, "cooldown": 0.55, "knockback": 90},
 	"iron_sword": {"name": "Iron Sword", "desc": "A proper soldier's blade.", "type": "melee", "dmg": 28, "cooldown": 0.5, "knockback": 110},
@@ -40,6 +41,7 @@ const RECIPES := [
 	{"out": "plank", "count": 1, "cost": {"wood": 2}, "station": ""},
 	{"out": "rope", "count": 1, "cost": {"fiber": 3}, "station": ""},
 	{"out": "arrow", "count": 4, "cost": {"wood": 1, "flint": 1}, "station": ""},
+	{"out": "bandage", "count": 2, "cost": {"cloth": 1}, "station": ""},
 	{"out": "wooden_sword", "count": 1, "cost": {"wood": 3, "rope": 1}, "station": ""},
 	{"out": "wooden_bow", "count": 1, "cost": {"wood": 3, "rope": 2}, "station": ""},
 	{"out": "apprentice_staff", "count": 1, "cost": {"wood": 3, "essence": 2}, "station": ""},

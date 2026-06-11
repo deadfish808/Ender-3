@@ -11,6 +11,7 @@ var weapon_label: Label
 var xp_bar: ProgressBar
 var level_label: Label
 var skill_hint: Label
+var bleed_label: Label
 var message_box: VBoxContainer
 
 var inventory_panel: Control
@@ -71,6 +72,9 @@ func _build_stats() -> void:
 		row.add_child(lbl)
 		row.add_child(pair[1])
 		box.add_child(row)
+	bleed_label = UIKit.label("BLEEDING — use a bandage!", 12, Color(1.0, 0.32, 0.28))
+	bleed_label.visible = false
+	box.add_child(bleed_label)
 
 
 func _build_clock() -> void:
@@ -160,6 +164,9 @@ func _process(_delta: float) -> void:
 	mana_bar.max_value = player.max_mana()
 	mana_bar.value = player.mana
 	hunger_bar.value = player.hunger
+	bleed_label.visible = player.bleeding
+	if player.bleeding:
+		bleed_label.modulate.a = 0.6 + 0.4 * sin(Time.get_ticks_msec() / 180.0)
 	var night_marker := "  (night)" if Game.is_night() else ""
 	time_label.text = "Day %d   %s%s" % [Game.day, Game.clock_text(), night_marker]
 	time_label.add_theme_color_override("font_color",

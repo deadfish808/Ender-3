@@ -89,6 +89,7 @@ func _finish() -> void:
 func _explode() -> void:
 	FX.explosion(get_parent(), position)
 	Game.play_sfx("explosion", -8.0)
+	Game.world.alert_zombies(position, 480.0)
 	for z in get_tree().get_nodes_in_group("zombies"):
 		if z.position.distance_to(position) < 46.0 and not _hit_targets.has(z):
 			z.hit(dmg * 0.7, position, 60.0)

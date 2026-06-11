@@ -1215,6 +1215,16 @@ def make_item_icons():
     px(im, 10, 4, IRON[1] + (255,))
     icons["workbench"] = im
 
+    im = icon_base()  # bandage
+    disc(im, 8, 10, 5.2, 5.2, (214, 206, 192, 255))
+    disc(im, 8, 10, 2.0, 2.0, (162, 152, 138, 255))
+    for a in range(10):
+        ang = a / 10 * math.tau
+        px(im, 8 + math.cos(ang) * 3.6, 10 + math.sin(ang) * 3.6, (188, 178, 164, 255))
+    rect(im, 11, 3, 15, 5, (214, 206, 192, 255))
+    rect(im, 11, 5, 15, 5, (178, 168, 154, 255))
+    icons["bandage"] = im
+
     for name, im in icons.items():
         save(outline(im), "items/%s.png" % name)
 

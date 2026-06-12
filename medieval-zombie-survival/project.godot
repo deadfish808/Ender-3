@@ -1,0 +1,31 @@
+; Engine configuration file.
+; Medieval Zombie Survival — isometric survival game (Godot 4.3+)
+
+config_version=5
+
+[application]
+
+config/name="Medieval Zombie Survival"
+config/description="Isometric medieval zombie survival: harvest, craft, build defenses, and level Fighter/Archer/Mage skill trees while the dead grow stronger every night."
+run/main_scene="res://scenes/Menu.tscn"
+config/features=PackedStringArray("4.3")
+config/icon="res://icon.png"
+
+[autoload]
+
+Game="*res://scripts/autoload/Game.gd"
+ItemDB="*res://scripts/autoload/ItemDB.gd"
+SkillTree="*res://scripts/autoload/SkillTreeDB.gd"
+FX="*res://scripts/autoload/FXLib.gd"
+
+[display]
+
+window/size/viewport_width=1280
+window/size/viewport_height=720
+window/stretch/mode="canvas_items"
+window/stretch/aspect="expand"
+
+[rendering]
+
+textures/canvas_textures/default_texture_filter=0
+2d/snap/snap_2d_transforms_to_pixel=true

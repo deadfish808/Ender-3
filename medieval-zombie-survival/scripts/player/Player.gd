@@ -21,7 +21,12 @@ var facing := "s"
 var dead := false
 var bleeding := false
 var infected := false
+var cold := false
 var weapon_wear: Dictionary = {}  # item id -> accumulated wear (breaks at 100)
+var _fishing := 0.0
+var _warmth_check := 0.0
+var _near_fire := false
+var _bobber: Node2D
 
 var _attack_cd := 0.0
 var _special_cd := 0.0
@@ -138,6 +143,13 @@ func _physics_process(delta: float) -> void:
 		_combo_stage = 0
 
 	var input_dir := Input.get_vector("move_left", "move_right", "move_up", "move_down")
+	if _fishing > 0.0:
+		if input_dir != Vector2.ZERO:
+			_stop_fishing(false)
+		else:
+			_fishing -= delta
+			if _fishing <= 0.0:
+				_stop_fishing(true)
 	var sprinting: bool = Input.is_action_pressed("sprint") and stamina > 1.0 and input_dir != Vector2.ZERO
 	var speed := SPRINT_SPEED if sprinting else WALK_SPEED
 	var move := input_dir.normalized() if input_dir != Vector2.ZERO else Vector2.ZERO
@@ -159,7 +171,7 @@ func _physics_process(delta: float) -> void:
 			FX.dust(get_parent(), position)
 			Game.world.alert_zombies(position, 90.0)
 	elif _stamina_delay <= 0.0:
-		stamina = minf(100.0, stamina + 15.0 * delta)
+		stamina = minf(100.0, stamina + (7.5 if cold else 15.0) * delta)
 
 	_update_survival(delta)
 	_update_anim(input_dir)
@@ -172,7 +184,19 @@ func _physics_process(delta: float) -> void:
 
 
 func _update_survival(delta: float) -> void:
-	hunger = maxf(0.0, hunger - 0.2 * delta)
+	_warmth_check -= delta
+	if _warmth_check <= 0.0:
+		_warmth_check = 0.5
+		_near_fire = false
+		for fire in get_tree().get_nodes_in_group("warmth"):
+			if fire.position.distance_to(position) < 115.0:
+				_near_fire = true
+				break
+		cold = (Game.is_night() or Game.world.weather == "rain") and not _near_fire
+	var hunger_rate := 0.2 * (1.4 if cold else 1.0)
+	hunger = maxf(0.0, hunger - hunger_rate * delta)
+	if cold and Game.is_night() and Game.world.weather == "rain":
+		_apply_damage(0.2 * delta, true)  # soaked and freezing in the dark
 	if hunger <= 0.0:
 		_apply_damage(1.2 * delta, true)
 	elif hunger > 70.0:
@@ -282,6 +306,8 @@ func _attack() -> void:
 			_bow_attack(w)
 		"staff":
 			_staff_attack(w)
+		"tool":
+			_cast_line()
 
 
 func _play_attack_anim(kind: String) -> void:
@@ -388,6 +414,45 @@ func _spawn_projectile(kind: String, dir: Vector2, dmg: float, pierce: int, expl
 	get_parent().add_child(p)
 
 
+## Fishing: cast at open water, stand still, wait for the bite.
+func _cast_line() -> void:
+	if _fishing > 0.0:
+		return
+	var target := get_global_mouse_position()
+	var world = Game.world
+	if position.distance_to(target) > 95.0:
+		FX.float_text(get_parent(), position, "too far to cast", Color(0.8, 0.8, 0.8))
+		_attack_cd = 0.4
+		return
+	if world.terrain_mat.get(world.world_to_tile(target), "") != "water":
+		FX.float_text(get_parent(), position, "cast at open water", Color(0.8, 0.8, 0.8))
+		_attack_cd = 0.4
+		return
+	_attack_cd = 0.5
+	_fishing = randf_range(2.8, 5.5)
+	_play_attack_anim("bow")
+	Game.play_sfx("splash", -10.0)
+	Game.world.alert_zombies(position, 40.0)
+	FX.ring(get_parent(), target, 14.0, Color(0.6, 0.75, 0.9))
+	_bobber = FX.bobber(get_parent(), target)
+	_wear_weapon(0.5)
+
+
+func _stop_fishing(success: bool) -> void:
+	_fishing = 0.0
+	if _bobber and is_instance_valid(_bobber):
+		_bobber.queue_free()
+	_bobber = null
+	if success:
+		if randf() < 0.7:
+			add_item("raw_fish", 1)
+			Game.play_sfx("pickup", -4.0)
+			Game.add_xp(3)
+			FX.float_text(get_parent(), position, "caught a fish!", Color(0.7, 0.85, 1.0))
+		else:
+			FX.float_text(get_parent(), position, "it got away...", Color(0.7, 0.7, 0.75))
+
+
 func _frost_nova() -> void:
 	if not SkillTree.has_skill("frost_nova") or _special_cd > 0.0 or mana < 20.0:
 		return
@@ -406,6 +471,7 @@ func _frost_nova() -> void:
 func take_damage(amount: float, from_pos: Vector2, wound_chance := 0.0) -> void:
 	if _iframes > 0.0 or dead:
 		return
+	_stop_fishing(false)
 	_iframes = 0.6
 	_knock = (position - from_pos).normalized() * 140.0
 	shake_camera(3.5)
@@ -500,7 +566,7 @@ func use_item(id: String) -> void:
 				infected = false
 				FX.float_text(get_parent(), position, "the rot recedes", Color(0.7, 0.9, 0.7))
 			Game.play_sfx("eat")
-		"melee", "bow", "staff":
+		"melee", "bow", "staff", "tool":
 			equipped = id
 			emit_signal("inventory_changed")
 		"buildable":

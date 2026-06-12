@@ -1316,6 +1316,34 @@ def make_item_icons():
     px(im, 10, 4, IRON[1] + (255,))
     icons["workbench"] = im
 
+    im = icon_base()  # fishing rod
+    line(im, 3, 15, 13, 3, WOOD[2] + (255,))
+    line(im, 4, 15, 14, 4, WOOD[1] + (255,))
+    line(im, 13, 3, 15, 9, (215, 210, 195, 255))
+    px(im, 15, 10, IRON[2] + (255,))
+    px(im, 14, 11, IRON[2] + (255,))
+    px(im, 13, 6, (170, 50, 45, 255))  # float
+    icons["fishing_rod"] = im
+
+    im = icon_base()  # raw fish
+    disc(im, 8, 9, 5, 2.6, (110, 125, 140, 255))
+    disc(im, 7, 8, 3, 1.5, (140, 155, 168, 255))
+    for t in range(3):
+        px(im, 13 + t, 9 - t, (96, 110, 124, 255))
+        px(im, 13 + t, 9 + t, (96, 110, 124, 255))
+    px(im, 4, 8, (30, 28, 36, 255))
+    icons["raw_fish"] = im
+
+    im = icon_base()  # cooked fish
+    disc(im, 8, 10, 5, 2.6, (150, 110, 70, 255))
+    disc(im, 7, 9, 3, 1.5, (178, 136, 88, 255))
+    for t in range(3):
+        px(im, 13 + t, 10 - t, (128, 92, 58, 255))
+        px(im, 13 + t, 10 + t, (128, 92, 58, 255))
+    px(im, 6, 4, (200, 200, 210, 160))
+    px(im, 9, 3, (200, 200, 210, 130))
+    icons["cooked_fish"] = im
+
     im = icon_base()  # remedy (infection cure)
     rect(im, 6, 7, 11, 15, (96, 62, 140, 255))
     rect(im, 6, 7, 11, 8, (130, 92, 178, 255))

@@ -79,7 +79,7 @@ var _sfx_next := 0
 
 const SFX_NAMES := [
 	"swing", "hit", "bow", "magic", "frost", "hurt", "zombie", "zombie_hit",
-	"build", "pickup", "craft", "levelup", "explosion", "eat", "door", "crow",
+	"build", "pickup", "craft", "levelup", "explosion", "eat", "door", "crow", "splash",
 ]
 
 

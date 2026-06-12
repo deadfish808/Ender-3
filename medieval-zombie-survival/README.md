@@ -107,6 +107,14 @@ yours isn't the only thing they flee from, so watch the treeline.
 
 ### More ways to die (and outsmart it)
 
+- **Noise memory**: the world remembers where you have been loud. Keep
+  fighting and hammering in one spot and distant zombies will migrate toward
+  it over the following minutes — quiet days keep the horde scattered.
+- **Cold**: nights and rain chill you unless you stand near a campfire or the
+  forge. Cold halves stamina recovery and burns food faster; soaked and
+  freezing at night drains your life.
+- **Fishing**: craft a rod (2 wood, 2 rope), cast at open water, and stand
+  still. Fish cook into proper meals at a campfire — quiet, renewable food.
 - **Infection**: an untreated wound can fester. Infection slowly drains your
   life and only a **Plague Remedy** cures it — loot one from city chests or
   brew it at a campfire (2 essence, 2 berries, 1 cloth).

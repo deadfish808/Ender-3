@@ -129,6 +129,30 @@ func dust(parent: Node, pos: Vector2) -> void:
 	get_tree().create_timer(0.7).timeout.connect(p.queue_free)
 
 
+## Fishing bobber: a tiny float that bobs on the water with ripples.
+func bobber(parent: Node, pos: Vector2) -> Node2D:
+	var b := FXBobber.new()
+	b.position = pos
+	b.z_index = 40
+	parent.add_child(b)
+	return b
+
+
+class FXBobber extends Node2D:
+	var _t := 0.0
+
+	func _process(delta: float) -> void:
+		_t += delta
+		queue_redraw()
+		if fmod(_t, 1.4) < delta:
+			FX.ring(get_parent(), position, 10.0, Color(0.6, 0.75, 0.9, 0.5))
+
+	func _draw() -> void:
+		var bob := sin(_t * 4.0) * 1.5
+		draw_circle(Vector2(0, bob), 2.2, Color(0.85, 0.3, 0.25))
+		draw_circle(Vector2(0, bob - 1.5), 1.2, Color(0.92, 0.9, 0.85))
+
+
 ## Expanding ring used by Frost Nova.
 func ring(parent: Node, pos: Vector2, radius: float, color: Color) -> void:
 	var ring_node := FXRing.new()

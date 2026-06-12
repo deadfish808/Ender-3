@@ -20,6 +20,9 @@ const ITEMS := {
 	"salve": {"name": "Healing Salve", "desc": "Herbal salve. Restores 40 health and stops bleeding.", "type": "food", "food": 0, "heal": 40, "cures": true},
 	"bandage": {"name": "Bandage", "desc": "Stops bleeding and patches small wounds.", "type": "food", "food": 0, "heal": 6, "cures": true},
 	"remedy": {"name": "Plague Remedy", "desc": "A bitter draught that burns out wound-rot. The only cure for infection.", "type": "food", "food": 0, "heal": 10, "cures": true, "cures_infection": true},
+	"raw_fish": {"name": "Raw Fish", "desc": "Fresh from the lake. Better cooked.", "type": "food", "food": 12, "heal": 0},
+	"cooked_fish": {"name": "Cooked Fish", "desc": "Flaky and hot. A proper meal.", "type": "food", "food": 45, "heal": 8},
+	"fishing_rod": {"name": "Fishing Rod", "desc": "Equip it, then cast at open water (LMB). Patience feeds you quietly.", "type": "tool"},
 	# weapons
 	"wooden_sword": {"name": "Wooden Sword", "desc": "A practice blade. Better than fists.", "type": "melee", "dmg": 14, "cooldown": 0.55, "knockback": 90},
 	"iron_sword": {"name": "Iron Sword", "desc": "A proper soldier's blade.", "type": "melee", "dmg": 28, "cooldown": 0.5, "knockback": 110},
@@ -54,6 +57,8 @@ const RECIPES := [
 	{"out": "wooden_door", "count": 1, "cost": {"wood": 4, "rope": 1}, "station": ""},
 	{"out": "spike_trap", "count": 1, "cost": {"wood": 3, "flint": 2}, "station": ""},
 	{"out": "garden_plot", "count": 1, "cost": {"wood": 3, "fiber": 2}, "station": ""},
+	{"out": "fishing_rod", "count": 1, "cost": {"wood": 2, "rope": 2}, "station": ""},
+	{"out": "cooked_fish", "count": 1, "cost": {"raw_fish": 1}, "station": "campfire"},
 	{"out": "stew", "count": 1, "cost": {"mushroom": 2, "berries": 1}, "station": "campfire"},
 	{"out": "salve", "count": 1, "cost": {"berries": 3, "cloth": 1}, "station": "campfire"},
 	{"out": "remedy", "count": 1, "cost": {"essence": 2, "berries": 2, "cloth": 1}, "station": "campfire"},

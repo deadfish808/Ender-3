@@ -137,6 +137,8 @@ def main():
     write_wav("rain", rain[:len(rain) - n_fade])
     write_wav("crow", mix(tone(0.16, 620, 380, vol=0.45, wave_kind="square", vibrato=22),
                           noise_sound(0.16, 0.5, 0.3, vol=0.25)))
+    write_wav("splash", mix(noise_sound(0.22, 0.7, 0.25, vol=0.5),
+                            tone(0.18, 300, 140, vol=0.25, wave_kind="triangle")))
     print("done")
 
 

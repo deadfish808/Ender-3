@@ -46,6 +46,10 @@ var _spawn_timer := 0.0
 var _groan_timer := 0.0
 var weather := "clear"  # "clear" | "rain"
 var _crow_timer := 8.0
+# zombies remember where the noise keeps coming from
+var noise_heat := 0.0
+var noise_center := Vector2.ZERO
+var _migrate_timer := 40.0
 var _weather_timer := 50.0
 var _rain: CPUParticles2D
 var _rain_audio: AudioStreamPlayer
@@ -105,6 +109,11 @@ func _process(delta: float) -> void:
 		_spawn_timer = 9.0 if _population_peaked() else 2.5
 		_try_spawn_zombie()
 	_update_weather(delta)
+	noise_heat = maxf(0.0, noise_heat - delta * 0.3)
+	_migrate_timer -= delta
+	if _migrate_timer <= 0.0:
+		_migrate_timer = 40.0
+		_migrate_toward_noise()
 	_crow_timer -= delta
 	if _crow_timer <= 0.0:
 		_crow_timer = 16.0
@@ -668,6 +677,11 @@ func alert_zombies(pos: Vector2, radius: float) -> void:
 	for z in get_tree().get_nodes_in_group("zombies"):
 		if z.position.distance_to(pos) < r:
 			z.hear_noise(pos)
+	# the world remembers: repeated noise in one place builds a "heat" the
+	# wider horde slowly migrates toward
+	var w := radius / 100.0
+	noise_center = (noise_center * noise_heat + pos * w) / maxf(noise_heat + w, 0.001)
+	noise_heat = minf(noise_heat + w, 60.0)
 
 
 func station_nearby(tag: String) -> bool:
@@ -711,6 +725,21 @@ func _spawn_horde() -> void:
 		entities.add_child(z)
 		z.hear_noise.call_deferred(Game.player.position)
 		spawned += 1
+
+
+## Distant zombies drift toward wherever the player has been loudest.
+func _migrate_toward_noise() -> void:
+	if noise_heat < 16.0:
+		return
+	var pulled := 0
+	for z in get_tree().get_nodes_in_group("zombies"):
+		if pulled >= int(noise_heat / 8.0):
+			break
+		if z.position.distance_to(noise_center) > 500.0:
+			z.hear_noise(noise_center + Vector2(rng.randf_range(-60, 60), rng.randf_range(-40, 40)))
+			pulled += 1
+	if pulled > 0 and rng.randf() < 0.5:
+		hud.announce("Distant moans... your noise is drawing them in", Color(0.85, 0.7, 0.7))
 
 
 func _maybe_spawn_crow() -> void:

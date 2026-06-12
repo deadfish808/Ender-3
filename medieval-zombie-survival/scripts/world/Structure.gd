@@ -33,6 +33,8 @@ func _ready() -> void:
 	add_to_group("interactable")
 	if _cfg.has("station"):
 		add_to_group("station_" + str(_cfg["station"]))
+	if _cfg.get("light", false):
+		add_to_group("warmth")
 	collision_layer = 1
 	collision_mask = 0
 	if _cfg.get("frames", 0) > 0:

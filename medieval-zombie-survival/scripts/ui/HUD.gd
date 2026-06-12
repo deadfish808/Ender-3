@@ -76,7 +76,8 @@ func _build_stats() -> void:
 			["INFECTED — find a remedy!", Color(0.78, 0.5, 0.92)],
 			["EXHAUSTED", Color(0.9, 0.85, 0.4)],
 			["STARVING", Color(0.95, 0.6, 0.3)],
-			["SOAKED", Color(0.55, 0.7, 0.9)]]:
+			["SOAKED", Color(0.55, 0.7, 0.9)],
+			["COLD — find a fire", Color(0.6, 0.85, 0.95)]]:
 		var ml: Label = UIKit.label(moodle[0], 12, moodle[1])
 		ml.visible = false
 		box.add_child(ml)
@@ -176,6 +177,7 @@ func _process(_delta: float) -> void:
 	moodles["EXHAUSTED"].visible = player.stamina < 20.0
 	moodles["STARVING"].visible = player.hunger <= 0.0
 	moodles["SOAKED"].visible = Game.world.weather == "rain"
+	moodles["COLD — find a fire"].visible = player.cold
 	for ml in moodles.values():
 		if ml.visible:
 			ml.modulate.a = pulse

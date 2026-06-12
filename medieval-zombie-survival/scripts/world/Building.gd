@@ -30,6 +30,8 @@ func setup(p_kind: String) -> void:
 func _ready() -> void:
 	collision_layer = 1
 	collision_mask = 0
+	if _cfg.get("always_lit", false):
+		add_to_group("warmth")  # the forge fire never dies
 	var tex: Texture2D = load(_cfg["tex"])
 	var spr := Sprite2D.new()
 	spr.texture = tex

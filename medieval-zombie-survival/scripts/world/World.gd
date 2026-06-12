@@ -97,6 +97,8 @@ func _ready() -> void:
 	hud.announce("Day 1 — gather, craft, build. Survive the night.", Color(1, 0.95, 0.7))
 	if OS.get_environment("MZS_SHOT_DIR") != "":
 		add_child(preload("res://scripts/debug/Screenshots.gd").new())
+	if OS.get_environment("MZS_SIM") != "":
+		add_child(preload("res://scripts/debug/Simulator.gd").new())
 
 
 func _process(delta: float) -> void:
@@ -293,7 +295,7 @@ func _build_ruins() -> void:
 
 
 func _scatter_pickups() -> void:
-	var loot := ["wood", "wood", "wood", "stone", "stone", "flint", "berries", "mushroom", "fiber"]
+	var loot := ["wood", "wood", "wood", "stone", "stone", "flint", "berries", "berries", "mushroom", "mushroom", "fiber"]
 	for i in 70:
 		var tile := Vector2i(rng.randi_range(4, MAP_SIZE - 5), rng.randi_range(4, MAP_SIZE - 5))
 		if walkable.get(tile, false) and not occupied.has(tile):
@@ -589,7 +591,7 @@ func _population_peaked() -> bool:
 func _target_population() -> int:
 	var base := _base_population()
 	if Game.is_night():
-		base *= 1.4
+		base *= 1.25
 	return mini(int(base * Game.setting("zombie_population")), POP_HARD_CAP)
 
 
@@ -631,7 +633,7 @@ func _pick_zombie_type(in_city := false) -> String:
 	var brute_chance := minf(0.05 + Game.day * 0.03, 0.3)
 	if in_city:
 		brute_chance += 0.06
-	var runner_chance := 0.25 if Game.is_night() else 0.08
+	var runner_chance := 0.2 if Game.is_night() else 0.08
 	if roll < brute_chance:
 		return "brute"
 	if roll < brute_chance + runner_chance:
@@ -696,7 +698,7 @@ func station_nearby(tag: String) -> bool:
 
 
 func _on_night(day: int) -> void:
-	if day >= 3 and day % 3 == 0:
+	if day >= 4 and (day - 1) % 3 == 0:
 		hud.announce("A horde approaches from the dark!", Color(1.0, 0.45, 0.4))
 		_spawn_horde()
 	else:
@@ -708,7 +710,7 @@ func _on_night(day: int) -> void:
 func _spawn_horde() -> void:
 	if Game.player == null or not is_instance_valid(Game.player):
 		return
-	var count := mini(8 + Game.day * 2, 32)
+	var count := mini(6 + Game.day * 2, 30)
 	var ang := rng.randf() * TAU
 	var center: Vector2 = Game.player.position + Vector2(cos(ang), sin(ang) * 0.5) * 850.0
 	var spawned := 0

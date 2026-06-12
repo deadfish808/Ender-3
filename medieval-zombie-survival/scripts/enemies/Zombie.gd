@@ -149,7 +149,7 @@ func _think_tick() -> void:
 	var dist := position.distance_to(player.position)
 	var aggro_range := 110.0
 	if Game.is_night():
-		aggro_range = 170.0
+		aggro_range = 160.0
 	if type == "runner":
 		aggro_range += 50.0
 	aggro_range *= Game.setting("zombie_senses")

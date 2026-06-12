@@ -126,6 +126,9 @@ func _start() -> void:
 
 
 func _process(_delta: float) -> void:
+	if OS.get_environment("MZS_SIM") != "":
+		_start()
+		return
 	if OS.get_environment("MZS_SHOT_DIR") == "":
 		return
 	_shot_frame += 1

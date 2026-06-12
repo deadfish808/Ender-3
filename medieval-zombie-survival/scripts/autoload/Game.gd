@@ -44,7 +44,7 @@ const SETTINGS_PATH := "user://settings.cfg"
 const BACKGROUNDS := [
 	{"id": "villager", "name": "Villager",
 		"desc": "A balanced start: sword, food, and a bandage.",
-		"kit": {"wooden_sword": 1, "berries": 4, "bandage": 1, "wood": 4, "stone": 2}, "equip": "wooden_sword"},
+		"kit": {"wooden_sword": 1, "berries": 5, "bandage": 1, "wood": 4, "stone": 2}, "equip": "wooden_sword"},
 	{"id": "soldier", "name": "Soldier",
 		"desc": "Iron sword and +20 health, but set in his ways: -25% XP.",
 		"kit": {"iron_sword": 1, "berries": 3, "bandage": 1}, "equip": "iron_sword",

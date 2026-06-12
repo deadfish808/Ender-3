@@ -23,6 +23,7 @@ var bleeding := false
 var infected := false
 var cold := false
 var weapon_wear: Dictionary = {}  # item id -> accumulated wear (breaks at 100)
+var aim_override := Vector2.ZERO  # used by the balance-sim bot
 var _fishing := 0.0
 var _warmth_check := 0.0
 var _near_fire := false
@@ -193,16 +194,16 @@ func _update_survival(delta: float) -> void:
 				_near_fire = true
 				break
 		cold = (Game.is_night() or Game.world.weather == "rain") and not _near_fire
-	var hunger_rate := 0.2 * (1.4 if cold else 1.0)
+	var hunger_rate := 0.16 * (1.3 if cold else 1.0)
 	hunger = maxf(0.0, hunger - hunger_rate * delta)
 	if cold and Game.is_night() and Game.world.weather == "rain":
 		_apply_damage(0.2 * delta, true)  # soaked and freezing in the dark
 	if hunger <= 0.0:
-		_apply_damage(1.2 * delta, true)
+		_apply_damage(0.5 * delta, true)  # starvation: slow doom, time to act
 	elif hunger > 70.0:
-		hp = minf(max_hp(), hp + 0.25 * delta)  # healing is slow; carry bandages
+		hp = minf(max_hp(), hp + 0.35 * delta)  # healing is slow; carry bandages
 	if bleeding:
-		_apply_damage(0.5 * delta, true)
+		_apply_damage(0.35 * delta, true)
 	if infected:
 		_apply_damage(0.15 * delta, true)  # wound-rot: slow doom without a remedy
 	if SkillTree.has_skill("second_wind") and hp < max_hp() * 0.3:
@@ -236,7 +237,7 @@ func _dir_name(v: Vector2) -> String:
 
 
 func _aim_dir() -> Vector2:
-	var d := get_global_mouse_position() - position
+	var d := (aim_override - position) if aim_override != Vector2.ZERO else (get_global_mouse_position() - position)
 	return d.normalized() if d.length() > 2.0 else Vector2.DOWN
 
 

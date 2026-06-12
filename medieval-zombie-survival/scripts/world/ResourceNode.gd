@@ -12,7 +12,7 @@ const CONFIG := {
 	"rock_small": {"texture": "res://assets/props/rock_small.png", "hits": 3, "offset": -18.0,
 			"yield": [["stone", 1.0], ["flint", 0.3]], "radius": 8.0, "blocks": true},
 	"bush": {"texture": "res://assets/props/bush_berry.png", "hits": 3, "offset": -24.0,
-			"yield": [["berries", 1.0], ["fiber", 0.55]], "radius": 0.0, "blocks": false, "regrow": 75.0,
+			"yield": [["berries", 1.0], ["berries", 0.5], ["fiber", 0.55]], "radius": 0.0, "blocks": false, "regrow": 65.0,
 			"empty_texture": "res://assets/props/bush_empty.png"},
 	"mushrooms": {"texture": "res://assets/props/mushrooms.png", "hits": 1, "offset": -14.0,
 			"yield": [["mushroom", 1.0], ["mushroom", 0.4]], "radius": 0.0, "blocks": false, "regrow": 90.0},
